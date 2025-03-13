@@ -179,14 +179,26 @@ class App:
         App.decoded_info = data[1]
         App.cv_image = data[0]
         if App.decoded_info is not None:
+            checked_cells = self.current_grid.checked_cells
+            max_row_len = 0
+            count = 0
+            for row in checked_cells:
+                for j,cell in enumerate(row,start = 1):
+                    count +=1
+                max_row_len = j if j>max_row_len else max_row_len
+            
             self.grid_type.set(value=f"Grille : {App.decoded_info["Type"]}")
             self.detected_rows.set(
-                value=f"Lignes Détéctées: {App.decoded_info["Lines"]}"
+                value=f"Lignes Détéctées: {len(checked_cells)} / {int(App.decoded_info["Lines"])-2}"
             )
+            
+            
             self.detected_cols.set(
-                value=f"Colonnes Détéctées: {App.decoded_info["Cols"]}"
+                value=f"Colonnes Détéctées: {max_row_len} / {App.decoded_info["Cols"]}"
             )
-        self.score = ctk.StringVar(value="N/A")
+            
+                    
+            self.score.set(value=f"Cellules Totales: {count} / {(int(App.decoded_info["Lines"])-2)*int(App.decoded_info["Cols"])}")
 
         self.image_viewer.after(
             10, lambda: self.image_viewer.event_generate("<Configure>")
