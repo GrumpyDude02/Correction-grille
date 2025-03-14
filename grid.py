@@ -119,6 +119,8 @@ class Grid:
         dilated_cropped_no_lines = cv2.morphologyEx(
             self.cropped_no_lines, cv2.MORPH_DILATE, Grid.square_kernel3, iterations=6
         )
+        
+        cv2.imwrite("temp/dileted_checked_marks.png", dilated_cropped_no_lines)
 
         checkmark_contours, _ = cv2.findContours(
             dilated_cropped_no_lines, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
@@ -150,6 +152,7 @@ class Grid:
         x, y, w, h = self.bbox_biggest_rect
         for bbox in self.checkmark_bboxes:
             xb, yb, wb, hb = bbox
+            cv2.rectangle(self.cropped_no_lines,(xb,yb),(xb+wb,yb+hb),255,2)
             cv2.rectangle(
                 self.drawn_og_img,
                 (xb + x + self.middle_x + xcell, ycell + y + yb),
