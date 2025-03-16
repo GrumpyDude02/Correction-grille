@@ -45,21 +45,21 @@ class Grid:
         self.inverted_img = cv2.bitwise_not(self.binary_img.copy())
 
     def _isolate_lines(self):
-        horizontal_lines = cv2.morphologyEx(
+        self.horizontal_lines = cv2.morphologyEx(
             self.inverted_img, cv2.MORPH_ERODE, Grid.horizontal_kernel, iterations=8
         )
-        horizontal_lines = cv2.morphologyEx(
-            horizontal_lines, cv2.MORPH_DILATE, Grid.horizontal_kernel, iterations=14
+        self.horizontal_lines = cv2.morphologyEx(
+            self.horizontal_lines, cv2.MORPH_DILATE, Grid.horizontal_kernel, iterations=14
         )
 
-        vertical_lines = cv2.morphologyEx(
+        self.vertical_lines = cv2.morphologyEx(
             self.inverted_img, cv2.MORPH_ERODE, Grid.vertical_kernel, iterations=8
         )
-        vertical_lines = cv2.morphologyEx(
-            vertical_lines, cv2.MORPH_DILATE, Grid.vertical_kernel, iterations=8
+        self.vertical_lines = cv2.morphologyEx(
+            self.vertical_lines, cv2.MORPH_DILATE, Grid.vertical_kernel, iterations=8
         )
 
-        self.combined_lines = cv2.bitwise_or(horizontal_lines, vertical_lines)
+        self.combined_lines = cv2.bitwise_or(self.horizontal_lines, self.vertical_lines)
 
     def _extract_cells(self):
         rhs_combined_lines = self.combined_lines[:, self.middle_x :]
@@ -108,7 +108,7 @@ class Grid:
         x, y, w, h = self.sorted_cells[0][0]
         x1, y1, w1, h1 = self.bbox_biggest_rect
 
-        self.no_lines = cv2.absdiff(self.inverted_img, self.combined_lines)
+        self.no_lines = cv2.absdiff(self.inverted_img, self.vertical_lines)
 
         rhs_no_lines = self.no_lines[:, self.middle_x:]
         self.cropped_no_lines = rhs_no_lines[y1 : y1 + h1, x1 : x1 + w1][y:, x:]
@@ -116,11 +116,21 @@ class Grid:
         self.cropped_no_lines = cv2.morphologyEx(
             self.cropped_no_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
         )
+        
         dilated_cropped_no_lines = cv2.morphologyEx(
-            self.cropped_no_lines, cv2.MORPH_DILATE, Grid.square_kernel3, iterations=6
+            self.cropped_no_lines, cv2.MORPH_DILATE, Grid.horizontal_kernel, iterations=8
         )
         
+        
+        dilated_cropped_no_lines = cv2.absdiff(dilated_cropped_no_lines,self.horizontal_lines[:, self.middle_x:][y1 : y1 + h1, x1 : x1 + w1][y:, x:])
+        
+        dilated_cropped_no_lines = cv2.bitwise_and(dilated_cropped_no_lines,self.inverted_img[:, self.middle_x:][y1 : y1 + h1, x1 : x1 + w1][y:, x:])
+        
+        dilated_cropped_no_lines =cv2.morphologyEx(dilated_cropped_no_lines,cv2.MORPH_CLOSE,Grid.square_kernel3,iterations=1)
+        
         cv2.imwrite("temp/dileted_checked_marks.png", dilated_cropped_no_lines)
+        
+        self.cropped_no_lines = dilated_cropped_no_lines
 
         checkmark_contours, _ = cv2.findContours(
             dilated_cropped_no_lines, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
@@ -138,8 +148,8 @@ class Grid:
             temp.append(tools.add_offset_bbox(row, (-x, -y)))
 
         for contour in checkmark_contours:
-            if cv2.contourArea(contour) > 900:
-                bbox = cv2.boundingRect(contour)
+            bbox = cv2.boundingRect(contour)
+            if bbox[2]*bbox[3] > 500:
                 self.checkmark_bboxes.append(bbox)
                 tools.assign_checkmarks_with_voting(bbox, temp, self.checked_cells)
         
