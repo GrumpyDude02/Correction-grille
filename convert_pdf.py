@@ -54,12 +54,14 @@ class PDFFile:
         and other attributes read pymupdf.Document.extract_image for more information"""
         if self._raw_images_dict:
             return self._raw_images_dict
+        biggest_image_dict = {'height':0}
         for i in range(len(self.file)):
             images = self.file.load_page(i).get_images(True)
             for image in images:
                 base_image_dict = self.file.extract_image(xref=image[0])
-                if base_image_dict["height"]>90: # camscan watermark
-                    self._raw_images_dict.append(base_image_dict)
+                if base_image_dict["height"]>biggest_image_dict["height"]:
+                    biggest_image_dict = base_image_dict
+            self._raw_images_dict.append(biggest_image_dict)
         return self._raw_images_dict.copy()
             
     def save_images(self):

@@ -120,43 +120,31 @@ class App:
             row=0, rowspan=2, column=2, columnspan=4, padx=4, pady=10, sticky="nsew"
         )
 
-        self.rhs_frame.rowconfigure((0, 1, 2, 3, 4), weight=1, uniform="a")
+        self.rhs_frame.rowconfigure((0, 1), weight=1, uniform="a")
         self.rhs_frame.columnconfigure((0, 1), weight=1, uniform="a")
 
         # Define StringVar variables
-        self.grid_type = ctk.StringVar(value="N/A")
-        self.detected_cols = ctk.StringVar(value="N/A")
-        self.detected_rows = ctk.StringVar(value="N/A")
-        self.score = ctk.StringVar(value="N/A")
+        self.grid_type = ctk.StringVar(value="Type de Grille: N/A")
+        self.score = ctk.StringVar(value="Score : N/A")
 
         self.grid_type_label = ctk.CTkLabel(
-            self.rhs_frame, text="Grid Type: ", textvariable=self.grid_type
+            self.rhs_frame, textvariable=self.grid_type
         )
-        self.detected_rows_label = ctk.CTkLabel(
-            self.rhs_frame, text="Rows: ", textvariable=self.detected_rows
-        )
-        self.detected_cols_label = ctk.CTkLabel(
-            self.rhs_frame, text="Columns: ", textvariable=self.detected_cols
-        )
+        
         self.score_label = ctk.CTkLabel(
             self.rhs_frame, text="Score: ", textvariable=self.score
         )
+        
         self.export_button = ctk.CTkButton(self.rhs_frame, text="Exporter", command=self.save_file)
         self.add_file_button = ctk.CTkButton(
             self.rhs_frame, text="Ajouter", command=self.open_file
         )
 
         self.grid_type_label.grid(
-            row=0, column=0, columnspan=2, padx=10, pady=5, sticky="w"
-        )
-        self.detected_rows_label.grid(
-            row=1, column=0, columnspan=2, padx=10, pady=5, sticky="w"
-        )
-        self.detected_cols_label.grid(
-            row=2, column=0, columnspan=2, padx=10, pady=5, sticky="w"
+            row=0, column=0, columnspan=2, padx=10, pady=5, sticky="nsew"
         )
         self.score_label.grid(
-            row=3, column=0, padx=10, columnspan=2, pady=5, sticky="w"
+            row=3, column=0, padx=10, columnspan=2, pady=5, sticky="nsew"
         )
         self.export_button.grid(
             row=4, column=0, columnspan=1, padx=10, pady=10, sticky="ew"
@@ -175,39 +163,20 @@ class App:
 
         self.image_viewer = ImageViewer(self.window, App.cv_image)
 
-    def update(self, data: tuple):
-        App.decoded_info = data[1]
-        App.cv_image = data[0]
-        if App.decoded_info is not None:
-            checked_cells = self.current_grid.checked_cells
-            max_row_len = 0
-            count = 0
-            for row in checked_cells:
-                for j,cell in enumerate(row,start = 1):
-                    count +=1
-                max_row_len = j if j>max_row_len else max_row_len
-            
-            self.grid_type.set(value=f"Grille : {App.decoded_info["Type"]}")
-            self.detected_rows.set(
-                value=f"Lignes Détéctées: {len(checked_cells)} / {int(App.decoded_info["Lines"])-2}"
-            )
-            
-            
-            self.detected_cols.set(
-                value=f"Colonnes Détéctées: {max_row_len} / {App.decoded_info["Cols"]}"
-            )
-            
-                    
-            self.score.set(value=f"Cellules Totales: {count} / {(int(App.decoded_info["Lines"])-2)*int(App.decoded_info["Cols"])}")
-
+    def update(self, data: tuple=None):
+        if data is None:
+            return
+        App.cv_image = data["image"]
+        self.grid_type.set(value=data["type"].value)
         self.image_viewer.after(
             10, lambda: self.image_viewer.event_generate("<Configure>")
         )
+        stop_calc, checked_indecies = self.current_grid.get_checked_cells_indicies()
+        if not stop_calc:
+            self.score.set(value=f"Score: {self.current_grid.calculate_score(checked_indecies)}")
 
     def _set_current_grid(self, event=None):
-        data = self.current_grid.run_analysis()
-        temp = [data["image"], data["qr_code_info"]]
-        self.update(temp)
+        self.update(self.current_grid.run_analysis())
 
     def _show_latest_file(self, event=None):
         if self.current_pdf is None:
@@ -266,18 +235,18 @@ class App:
         xl_original_grid_obj.save(file_path)
         xl_original_grid_obj.close()
         
-        checked_cells = self.current_grid.checked_cells
+        checked_cells = self.current_grid.cells_state
         xl_copy = openpyxl.load_workbook(file_path)
         active_sheet = xl_copy.active
         for i,row in enumerate(checked_cells,start=3):
             for j,cell in enumerate(row,start=4):
-                active_sheet.cell(row=i, column=j).value="X" if cell > 0 else ""
+                active_sheet.cell(row=i, column=j).value="X" if cell[0] > 0 else ""
         
         xl_copy.save(file_path)
         xl_copy.close()
 
     def run(self):
-        self.update(process_pdf())
+        self.update()
         self.window.mainloop()
 
 

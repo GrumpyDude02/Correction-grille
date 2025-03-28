@@ -4,6 +4,48 @@ from statistics import mode
 import cv2
 
 
+def merge_lines(lines, angle_threshold=10, distance_threshold=20):
+    """
+    Merges similar lines based on angle and distance thresholds.
+    :param lines: List of detected lines from HoughLinesP
+    :param angle_threshold: Maximum angle difference to merge lines (in degrees)
+    :param distance_threshold: Maximum distance between line endpoints to merge
+    :return: List of merged lines
+    """
+    if lines is None:
+        return []
+
+    merged_lines = []
+
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        angle = np.arctan2(y2 - y1, x2 - x1) * 180 / np.pi  # Convert to degrees
+        merged = False
+
+        for merged_line in merged_lines:
+            mx1, my1, mx2, my2 = merged_line
+            m_angle = np.arctan2(my2 - my1, mx2 - mx1) * 180 / np.pi
+
+            # Check if lines are similar in angle
+            if abs(angle - m_angle) < angle_threshold:
+                # Check if lines are close in distance
+                if (np.linalg.norm([x1 - mx1, y1 - my1]) < distance_threshold or 
+                    np.linalg.norm([x2 - mx2, y2 - my2]) < distance_threshold):
+                    
+                    # Merge the lines by taking min and max coordinates
+                    merged_lines.remove(merged_line)
+                    new_x1, new_y1 = min(x1, mx1), min(y1, my1)
+                    new_x2, new_y2 = max(x2, mx2), max(y2, my2)
+                    merged_lines.append([new_x1, new_y1, new_x2, new_y2])
+                    merged = True
+                    break
+        
+        if not merged:
+            merged_lines.append([x1, y1, x2, y2])
+
+    return merged_lines
+
+
 def decode_qr(raw_text:str):
     if not raw_text:
         return None
@@ -50,7 +92,7 @@ def assign_checkmarks_with_voting(bbox, rows, checked_cells):
     
     x, y, w, h = bbox  # Bounding box of the detected checkmark
     checkmark_area = w * h  
-
+    
     for row_index, row in enumerate(rows):
         for col_index, (cell_x, cell_y, cell_w, cell_h) in enumerate(row):
             # Compute intersection area
