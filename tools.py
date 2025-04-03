@@ -119,6 +119,7 @@ def finalize_vote(checked_cells,threshold = 0.2):
     #             checked_cells[i][j] = 0
    
 
+
 def sort_cells(bounding_boxes):
     rows = []
     heights = []

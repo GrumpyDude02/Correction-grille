@@ -50,7 +50,7 @@ class Grid:
 
     def _decode_qr_code(self):
         qcd = cv2.QRCodeDetector()
-        decoded_info, points, data = qcd.detectAndDecode(self.original_matrix)
+        decoded_info, _, _ = qcd.detectAndDecode(self.original_matrix)
         qr_code_data = tools.decode_qr(decoded_info)
 
         if qr_code_data:
@@ -96,7 +96,6 @@ class Grid:
         outer_contours, _ = cv2.findContours(
             rhs_combined_lines, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
         )
-        cv2.imshow("rhs",self.original_matrix)
         rects = []
         for i in range(len(outer_contours)):
             approximate_points = cv2.approxPolyDP(
@@ -276,55 +275,15 @@ class Grid:
         #     formatted_row = [f"{value:.2f}" for value in row]
         #     print("\t".join(formatted_row))
 
-    def get_checked_cells_indicies(self):
 
-        if self.sorted_cells is None:
-            return True, None
-
-        n_cells = 0
-        for i in range(len(self.sorted_cells)):
-            for j in range(len(self.sorted_cells[i])):
-                n_cells += 1
-        min_cells_row = len(self.sorted_cells[0])
-
-        for i in range(len(self.sorted_cells)):
-            t = len(self.sorted_cells[0])
-            min_cells_row = t if t < min_cells_row else min_cells_row
-
-        if self.type is not GridType.Unknown and (
-            self.expected_row_cols[0] != min_cells_row
-            or self.expected_row_cols[0] * self.expected_row_cols[1] != n_cells
-        ):
-            return True, None
-
-        stop_calculation = False
-        n_cells = 0  # the actual number of cells detected
-        checked: list[list] = []
-
-        for i, row in enumerate(self.cells_state):
-            checked.append([])
-            for j, cell in enumerate(row):
-                if cell[0] == 1:
-                    checked[i].append(j)
-            if not checked[i]:
-                checked[i] = -1  # empty row
-                stop_calculation = True
-            if len(checked[i]) == 2:
-                stop_calculation = True
-        return stop_calculation, checked
-
-    def calculate_score(self, checked_cells_indecies):
-        if checked_cells_indecies is None:
-            return -1
-        score = 0
-        for i, row in enumerate(checked_cells_indecies):
-            multiplier = 2 if i >= 19 else 1
-            score += row[0] * 0.2 * multiplier
-        return score
-
+    def change_cell_color(self,row,col,color_code):
+        self.cells_state[row][col][1] = color_code
+        self._draw_cells_bboxs()
+    
     def _draw_cells_bboxs(self):
         xcell, ycell, _, _ = self.sorted_cells[0][0]
         x, y, w, h = self.bbox_biggest_rect
+        self.drawn_og_img = self.original_matrix.copy()
         for bbox in self.checkmark_bboxes:
             xb, yb, wb, hb = bbox
             cv2.rectangle(self.cropped_no_lines, (xb, yb), (xb + wb, yb + hb), 255, 2)
@@ -368,3 +327,65 @@ class Grid:
             self._draw_cells_bboxs()
             self.save_imgs("temp")
         return {"image": self.drawn_og_img, "type": self.type}
+    
+    
+    def calculate_score(self):
+        checked_cells_indecies = self.get_checked_cells_indicies()
+        if checked_cells_indecies is None:
+            return -1
+        score = 0
+        for i, row in enumerate(checked_cells_indecies):
+            multiplier = 2 if i >= 19 else 1
+            score += row[0] * 0.2 * multiplier
+        return score
+    
+    def get_checked_cells_indicies(self):
+
+        if self.sorted_cells is None:
+            return None
+
+        checked: list[list] = []
+
+        for i, row in enumerate(self.cells_state):
+            checked.append([])
+            for j, cell in enumerate(row):
+                if cell[0] == 1:
+                    checked[i].append(j)
+        return checked
+
+    def find_multiple_checks_and_empty_rows(self):
+        rows_with_multiple_checks = []
+        string_warn = []
+        empty_rows = []
+        
+        
+        n_cells = 0
+        for i in range(len(self.sorted_cells)):
+            for j in range(len(self.sorted_cells[i])):
+                n_cells += 1
+        min_cells_row = len(self.sorted_cells[0])
+
+        for i in range(len(self.sorted_cells)):
+            t = len(self.sorted_cells[0])
+            min_cells_row = t if t < min_cells_row else min_cells_row
+
+        if self.type is not GridType.Unknown and (
+            self.expected_row_cols[0] != min_cells_row
+            or self.expected_row_cols[0] * self.expected_row_cols[1] != n_cells
+        ):
+            string_warn.append(f"Unknown grid type, calculation might be wrong")
+
+        for i, row in enumerate(self.cells_state):
+            checked_cells = [j for j,cell in enumerate(row) if cell[0]==1]
+            if len(checked_cells) > 1:
+                rows_with_multiple_checks.append((i, checked_cells))  # Row index and cells
+            elif len(checked_cells) == 0:
+                empty_rows.append(f"Empty at row {i}")  # Row index of empty rows
+        
+        return {'multiple_detections':rows_with_multiple_checks,"empty_rows": empty_rows,"other_warnings":string_warn}
+    
+    
+    def set_selected_cell(self, row, col):
+            """Keeps only the selected cell checked and unchecks others."""
+            for j in range(len(self.cells_state[row])):
+                self.cells_state[row][j] = [1,2] if j == col else [0, 1]
