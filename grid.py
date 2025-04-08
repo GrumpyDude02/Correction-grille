@@ -44,9 +44,9 @@ class Grid:
         self.no_lines = None
         self.sorted_cells = None
         self.cells_state = None
-        self.checked_cells = None
         self.type = GridType.Unknown
         self.warnings = None
+        self.checkmark_collisions = None
 
     def _decode_qr_code(self):
         qcd = cv2.QRCodeDetector()
@@ -67,14 +67,24 @@ class Grid:
         self._decode_qr_code()
         self.gray_img = cv2.cvtColor(self.original_matrix, cv2.COLOR_BGR2GRAY)
         self.binary_img = cv2.adaptiveThreshold(
-            self.gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 51, 5
-        )
+            self.gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 51, 5)
+        
+        # cv2.ADAPTIVE_GAUSSIAN_C : Méthode utilisée pour calculer le seuil localement (Moyenne pondérée selon une distribution gaussienne)
+        # 51: Taille du voisinage (fenêtre) 51
+        # 5: Valeur constante a soustraire au seuil calculé
+        
         self.inverted_img = cv2.bitwise_not(self.binary_img.copy())
 
     def _isolate_lines(self):
+        
+        # element strurcuturant horizontal === horizontal_kernel = [1,1,1,1,1,1,1] 
+        
+        # 8 iterations d'erosion
         self.horizontal_lines = cv2.morphologyEx(
             self.inverted_img, cv2.MORPH_ERODE, Grid.horizontal_kernel, iterations=8
         )
+        
+        # 14 iteration de dilatation
         self.horizontal_lines = cv2.morphologyEx(
             self.horizontal_lines,
             cv2.MORPH_DILATE,
@@ -82,9 +92,21 @@ class Grid:
             iterations=14,
         )
 
+        
+        # element strurcuturant vertical === vertical_kernel = [[1],
+            #                                                   [1],
+            #                                                   [1],
+            #                                                   [1],
+            #                                                   [1],
+            #                                                   [1],
+            #                                                   [1]] 
+            
+        # 8 iterations d'erosion
         self.vertical_lines = cv2.morphologyEx(
             self.inverted_img, cv2.MORPH_ERODE, Grid.vertical_kernel, iterations=8
         )
+        
+        # 8 iterations de dilatation
         self.vertical_lines = cv2.morphologyEx(
             self.vertical_lines, cv2.MORPH_DILATE, Grid.vertical_kernel, iterations=8
         )
@@ -111,28 +133,13 @@ class Grid:
         x, y, w, h = self.bbox_biggest_rect
         self.cropped_combined_lines = rhs_combined_lines[y : y + h, x : x + w]
 
-        lines = cv2.HoughLinesP(
-            self.cropped_combined_lines,
-            rho=1,
-            theta=np.pi / 180,
-            threshold=50,
-            minLineLength=50,
-            maxLineGap=10,
-        )
-
-        a = np.zeros_like(self.cropped_combined_lines)
-
-        for line in lines:
-            x1, y1, x2, y2 = line[0]  # Extract coordinates
-            cv2.line(a, (x1, y1), (x2, y2), 255, 2)
-
         self.cropped_combined_lines = cv2.ximgproc.thinning(self.cropped_combined_lines)
 
         inner_contours, _ = cv2.findContours(
             self.cropped_combined_lines, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
         )
 
-        cv2.imwrite("temp/gsf.png", a)
+
 
         bboxes = []
 
@@ -156,24 +163,34 @@ class Grid:
 
         # Suppression des lignes verticales
         self.no_lines = cv2.absdiff(self.inverted_img, self.vertical_lines)
+        
+        cv2.imwrite("temp/-1.png",self.vertical_lines)
+        
 
         # Extraction de la partie droite de l'image
         right_no_lines = self.no_lines[:, self.middle_x :]
         self.cropped_no_lines = right_no_lines[y1 : y1 + h1, x1 : x1 + w1][y:, x:]
 
+        cv2.imwrite("temp/0.png",self.cropped_no_lines)
         # Suppression du bruit avec une ouverture morphologique
         self.cropped_no_lines = cv2.morphologyEx(
             self.cropped_no_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
         )
 
         # Dilatation pour reconnecter les éléments disjoints
+        
+        cv2.imwrite("temp/avant.png",self.cropped_no_lines)
+        
         dilated_cropped_no_lines = cv2.morphologyEx(
             self.cropped_no_lines,
             cv2.MORPH_DILATE,
             Grid.horizontal_kernel,
             iterations=3,
         )
-
+        
+        cv2.imwrite("temp/1.png",dilated_cropped_no_lines)
+        
+        
         # Suppression des lignes résiduelles
         mask_horizontal = self.horizontal_lines[:, self.middle_x :][
             y1 : y1 + h1, x1 : x1 + w1
@@ -182,12 +199,8 @@ class Grid:
         dilated_cropped_no_lines = cv2.absdiff(
             dilated_cropped_no_lines, mask_horizontal
         )
-
-        # Filtrage supplémentaire pour améliorer l'extraction des checkmarks
-        dilated_cropped_no_lines = cv2.bitwise_and(
-            dilated_cropped_no_lines,
-            self.inverted_img[:, self.middle_x :][y1 : y1 + h1, x1 : x1 + w1][y:, x:],
-        )
+        cv2.imwrite("temp/hor_mask.png",mask_horizontal)
+        cv2.imwrite("temp/2.png",dilated_cropped_no_lines)
 
         # Fermeture puis ouverture morphologique pour éliminer le bruit
         dilated_cropped_no_lines = cv2.morphologyEx(
@@ -196,15 +209,22 @@ class Grid:
         dilated_cropped_no_lines = cv2.morphologyEx(
             dilated_cropped_no_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
         )
+        
+        
+         # Filtrage supplémentaire pour améliorer l'extraction des checkmarks
+        dilated_cropped_no_lines = cv2.bitwise_and(
+            dilated_cropped_no_lines,
+            self.inverted_img[:, self.middle_x :][y1 : y1 + h1, x1 : x1 + w1][y:, x:],
+        )
 
-        # Sauvegarde du résultat pour inspection
-        cv2.imwrite("temp/dilated_checked_marks.png", dilated_cropped_no_lines)
+        
+        
 
         # Mise à jour de l'attribut final
         self.cropped_no_lines = dilated_cropped_no_lines
 
         checkmark_contours, _ = cv2.findContours(
-            dilated_cropped_no_lines, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+            dilated_cropped_no_lines, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
 
         self.checkmark_bboxes = []
@@ -221,11 +241,12 @@ class Grid:
 
         for contour in checkmark_contours:
             bbox = cv2.boundingRect(contour)
-            if cv2.contourArea(contour) > 150:
+            if cv2.contourArea(contour) > 175:
                 self.checkmark_bboxes.append(bbox)
                 # tools.assign_checkmarks_with_voting(bbox, temp, self.cells_state)
 
         collisions = {}
+        self.collisions_based_on_rows={}
         for index, bbox in enumerate(self.checkmark_bboxes):
             xb, yb, wb, hb = bbox
             checkmark_area = hb * wb
@@ -247,25 +268,30 @@ class Grid:
             collision = collisions.get(index)
             if not collision:
                 continue
+            # Multiple intersecting cells
+            max_collision = max(collision, key=lambda x: x[2])
 
-            if len(collision) == 1:
+            if max_collision[2] >= 0.6:
                 row, col, _ = collision[0]
                 self.cells_state[row][col][0] = 1
-            else:
-                # Multiple intersecting cells
-                max_collision = max(collision, key=lambda x: x[2])
-
-                if max_collision[2] >= 0.6:
-                    self.cells_state[max_collision[0]][max_collision[1]][0] = 1
+                if self.collisions_based_on_rows.get(row) is None:
+                    self.collisions_based_on_rows[row]= [[col]]
                 else:
-                    for row, col, _ in collision:
-                        self.cells_state[row][col][0] = 1
-                        self.cells_state[row][col][1] = 3
+                    self.collisions_based_on_rows[row].append([col])
+            else:
+                for row, col, _ in collision:
+                    self.cells_state[row][col][0] = 0.5
+                    self.cells_state[row][col][1] = 3
+                    if self.collisions_based_on_rows.get(row) is None:
+                        self.collisions_based_on_rows[row]= [[col]]
+                    else:
+                        self.collisions_based_on_rows[row][0].append(col)
+                   
         
         for i in range(len(self.cells_state)):
             empty_row = True
             for j in range(len(self.cells_state[i])):
-                if self.cells_state[i][j][0] == 1:
+                if self.cells_state[i][j][0] > 0:
                     empty_row = False
             if empty_row:
                 for j in range(len(self.cells_state[i])):
@@ -330,14 +356,15 @@ class Grid:
     
     
     def calculate_score(self):
-        checked_cells_indecies = self.get_checked_cells_indicies()
-        if checked_cells_indecies is None:
-            return -1
         score = 0
-        for i, row in enumerate(checked_cells_indecies):
-            multiplier = 2 if i >= 19 else 1
-            score += row[0] * 0.2 * multiplier
-        return score
+        for i, row in enumerate(self.cells_state):
+            if i > 19:
+                multiplier = 2 
+            else :
+                multiplier = 1
+            for j in range(len(row)):
+                    score += row[j][0] * j * 0.2 * multiplier
+        return ((score/32)*20)
     
     def get_checked_cells_indicies(self):
 
@@ -369,18 +396,20 @@ class Grid:
             t = len(self.sorted_cells[0])
             min_cells_row = t if t < min_cells_row else min_cells_row
 
-        if self.type is not GridType.Unknown and (
+        if self.type is GridType.Unknown and (
             self.expected_row_cols[0] != min_cells_row
             or self.expected_row_cols[0] * self.expected_row_cols[1] != n_cells
         ):
-            string_warn.append(f"Unknown grid type, calculation might be wrong")
+            string_warn.append(f"Type de grille indefinie, le score peut être erroné")
 
         for i, row in enumerate(self.cells_state):
-            checked_cells = [j for j,cell in enumerate(row) if cell[0]==1]
-            if len(checked_cells) > 1:
-                rows_with_multiple_checks.append((i, checked_cells))  # Row index and cells
-            elif len(checked_cells) == 0:
-                empty_rows.append(f"Empty at row {i}")  # Row index of empty rows
+            checked_cells = [(j, cell[0]) for j, cell in enumerate(row) if cell[0] > 0]
+            total_check_value = sum(cell[1] for cell in checked_cells)
+
+            if total_check_value > 1:
+                rows_with_multiple_checks.append((i, [cell[0] for cell in checked_cells]))
+            elif total_check_value == 0:
+                empty_rows.append(f"Empty at row {i}")
         
         return {'multiple_detections':rows_with_multiple_checks,"empty_rows": empty_rows,"other_warnings":string_warn}
     
