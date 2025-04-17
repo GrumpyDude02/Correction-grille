@@ -4,6 +4,12 @@ from statistics import mode
 import cv2
 
 
+def calculate_angle(p1, p2):
+    delta_y = p2[1] - p1[1]
+    delta_x = p2[0] - p1[0]
+    angle = np.arctan2(delta_y, delta_x) * 180 / np.pi
+    return angle
+
 def merge_lines(lines, angle_threshold=10, distance_threshold=20):
     """
     Merges similar lines based on angle and distance thresholds.

@@ -1,11 +1,9 @@
-import customtkinter as ctk
+import customtkinter as ctk,cv2,openpyxl
 from constants import *
+from warning import *
 from PIL import Image, ImageTk
 from convert_pdf import PDFFile
 from grid import Grid
-import cv2
-from processing import process_pdf
-import openpyxl
 
 # TODO: make warning class
 # TODO: Add Errors
@@ -19,7 +17,7 @@ class ImageViewer(ctk.CTkCanvas):
         if App.cv_image is None:
             App.cv_image = cv_image
 
-        self.grid(column=0, columnspan=2, row=0, sticky="nsew")
+        self.grid(column=0, columnspan=2, row=0, rowspan=3, sticky="nsew")
         self.bind("<Configure>", self.resize_callback)
 
         # Zoom and Pan Variables
@@ -54,7 +52,6 @@ class ImageViewer(ctk.CTkCanvas):
     def resize_callback(self, event):
         if App.cv_image is None:
             return
-
         width, height = self.winfo_width(), self.winfo_height()
         self.delete("all")
         self.resize(width, height)
@@ -106,7 +103,7 @@ class ImageViewer(ctk.CTkCanvas):
 class NavigationButtons(ctk.CTkFrame):
     def __init__(self, master):
         super().__init__(master=master)
-        self.grid(row=1, columnspan=2, column=0, sticky="ew", padx=7, pady=4)
+        self.grid(row=3, columnspan=2, column=0, sticky="ew", padx=7, pady=4)
 
         self.columnconfigure(0, weight=1, uniform="b")
         self.columnconfigure(1, weight=1, uniform="b")
@@ -147,6 +144,8 @@ class App:
         resizable: list[bool],
         icon_path: str = None,
     ):
+
+        self.after_id = None
         self.width = width
         self.height = height
         self.pdfs: list[PDFFile] = []
@@ -159,16 +158,18 @@ class App:
         self.window.title(title)
 
         self.window.columnconfigure((0, 1, 2, 3, 4), weight=1, uniform="a")
-        self.window.rowconfigure(0, weight=1)
-        self.window.rowconfigure(1, weight=0)
+        self.window.rowconfigure((0, 1, 2), weight=1)
+        self.window.rowconfigure(3, weight=0)
 
         self.rhs_frame = ctk.CTkFrame(self.window)
         self.rhs_frame.grid(
-            row=0, rowspan=2, column=2, columnspan=4, padx=4, pady=10, sticky="nsew"
+            row=0, rowspan=4, column=2, columnspan=4, padx=4, pady=10, sticky="nsew"
         )
 
         self.rhs_frame.rowconfigure((0, 1, 2, 3, 4), weight=1, uniform="a")
         self.rhs_frame.columnconfigure((0, 1), weight=1, uniform="a")
+
+        self.warning_frame = WarningFrame(self.rhs_frame)
 
         # Define StringVar variables
         self.grid_type = ctk.StringVar(value="Type de Grille: N/A")
@@ -191,13 +192,13 @@ class App:
             row=0, column=0, columnspan=2, padx=10, pady=5, sticky="nsew"
         )
         self.score_label.grid(
-            row=3, column=0, padx=10, columnspan=2, pady=5, sticky="nsew"
+            row=4, column=0, padx=10, columnspan=2, pady=5, sticky="nsew"
         )
         self.export_button.grid(
-            row=4, column=0, columnspan=1, padx=10, pady=10, sticky="ew"
+            row=5, column=0, columnspan=1, padx=10, pady=10, sticky="ew"
         )
         self.add_file_button.grid(
-            row=4, column=1, columnspan=1, padx=10, pady=10, sticky="ew"
+            row=5, column=1, columnspan=1, padx=10, pady=10, sticky="ew"
         )
 
         self.rhs_frame.grid_columnconfigure(0, weight=1)
@@ -212,12 +213,19 @@ class App:
             ]
         )
 
+        self.cell_buttons_callback = {
+            "on_click": self._button_on_click,
+            "on_hover": self._button_on_hover,
+            "on_leave": self._button_on_leave,
+        }
+
         if icon_path:
             self.window.iconbitmap(icon_path)
 
         self.image_viewer = ImageViewer(self.window, App.cv_image)
 
     def update(self, data: tuple = None):
+        self.warning_frame.clear()
         if data is None:
             return
         App.cv_image = data["image"]
@@ -226,13 +234,11 @@ class App:
             10, lambda: self.image_viewer.event_generate("<Configure>")
         )
 
-        data = self.current_grid.find_multiple_checks_and_empty_rows()
-
-        if hasattr(self, "selection_frame"):
-            self.selection_frame.destroy()
-        self.show_selection_frame(data)
-        if not data["empty_rows"] and not data["multiple_detections"]:
-            self.score.set(value=f"Score:{self.current_grid.calculate_score()}")
+        error_rows: dict = self.current_grid.get_problematic_cells_per_row()
+        if not error_rows:
+            return
+        self.warning_frame.add_button_frame(error_rows,self.cell_buttons_callback)
+        self.warning_frame.show_button_frames()
 
     def _set_current_grid(self, event=None):
         self.update(self.current_grid.run_analysis())
@@ -312,128 +318,18 @@ class App:
         self.update()
         self.window.mainloop()
 
-    # TODO: make warning class
-    # TODO: Add Errors
-    # TODO: Show the number of files
+    def _button_on_click(self,button_frame, row, cols, event=None):
+        self.current_grid.set_selected_cell(row,cols)
+        self.warning_frame.destroy_frame(button_frame)
+        if not self.warning_frame.button_frames:
+            self.score.set(value=f"Score: {self.current_grid.calculate_score()}")
+            
 
-    def show_selection_frame(self, warnings_dict):
-        """Creates a selection frame on the right half of the window for user input."""
+    def _button_on_hover(self, row, cols, event=None):
+        pass
 
-        # Create a new frame inside rhs_frame (right side)
-        self.selection_frame = ctk.CTkFrame(self.rhs_frame)
-        self.selection_frame.grid(
-            row=1,rowspan=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew"
-        )
-
-        # Title label
-        label = ctk.CTkLabel(
-            self.selection_frame, text="⚠ Select One Cell Per Row", font=("Arial", 14)
-        )
-        label.pack(pady=5)
-
-        # Handle multiple checks (rows with multiple checked cells)
-        multiple_checks = warnings_dict.get("multiple_detections", [])
-        for row_index, checked_cells in multiple_checks:
-            row_frame = ctk.CTkFrame(self.selection_frame)
-            row_frame.pack(pady=5, fill="x")
-
-            row_label = ctk.CTkLabel(
-                row_frame, text=f"Row {row_index + 1}: ", font=("Arial", 12)
-            )
-            row_label.pack(side="left", padx=5)
-
-            for col_index in checked_cells:
-                btn = ctk.CTkButton(
-                    row_frame,
-                    text=f"Cell {col_index + 1}",
-                    command=lambda r=row_index, c=col_index: self.select_cell(r, c),
-                    fg_color="blue",
-                    hover_color="darkblue",
-                )
-                btn.pack(side="left", padx=5)
-
-                # Bind hover events to highlight the corresponding cell in the OpenCV image
-                btn.bind(
-                    "<Enter>",
-                    lambda event, r=row_index, c=col_index: self.on_hover(r, c),
-                )
-                btn.bind(
-                    "<Leave>",
-                    lambda event, r=row_index, c=col_index: self.on_leave(r, c),
-                )
-
-        # Display other warnings
-        other_warnings = warnings_dict.get("other_warnings", [])
-        if other_warnings:
-            warnings_frame = ctk.CTkFrame(self.selection_frame)
-            warnings_frame.pack(pady=10, fill="x")
-
-            warnings_label = ctk.CTkLabel(
-                warnings_frame, text="⚠ Warnings", font=("Arial", 14, "bold")
-            )
-            warnings_label.pack(pady=5)
-
-            # Display each warning in the other_warnings list
-            for warning in other_warnings:
-                warning_label = ctk.CTkLabel(
-                    warnings_frame, text=warning, font=("Arial", 12)
-                )
-                warning_label.pack(anchor="w", padx=10, pady=3)
-
-        # Display empty rows (rows that are empty)
-        empty_rows = warnings_dict.get("empty_rows", [])
-        if empty_rows:
-            empty_rows_frame = ctk.CTkFrame(self.selection_frame)
-            empty_rows_frame.pack(pady=10, fill="x")
-
-            empty_rows_label = ctk.CTkLabel(
-                empty_rows_frame, text="❌ Empty Rows", font=("Arial", 14, "bold")
-            )
-            empty_rows_label.pack(pady=5)
-
-            # Display each empty row
-            for empty_row in empty_rows:
-                empty_row_label = ctk.CTkLabel(
-                    empty_rows_frame, text=empty_row, font=("Arial", 12)
-                )
-                empty_row_label.pack(anchor="w", padx=10, pady=3)
-
-        # Make sure the right side resizes properly
-        self.rhs_frame.rowconfigure(1, weight=1)
-
-    def on_hover(self, row, col):
-        """Highlights the corresponding cell in the OpenCV image when hovering over an option."""
-        if self.current_grid and App.hover != (row, col):
-            self.current_grid.change_cell_color(row, col, 2)
-            App.cv_image = self.current_grid.drawn_og_img
-            self.image_viewer.after(
-                10, lambda: self.image_viewer.event_generate("<Configure>")
-            )
-            App.hover = (row, col)
-
-    def on_leave(self, row, col):
-        """Removes the highlight when the user moves the mouse away."""
-        # self.image_viewer.update_image(App.cv_image)
-        if self.current_grid:
-            self.current_grid.change_cell_color(row, col, 3)
-            App.cv_image = self.current_grid.drawn_og_img
-            self.image_viewer.after(
-                10, lambda: self.image_viewer.event_generate("<Configure>")
-            )
-            App.hover = None
-
-    def select_cell(self, row, col):
-        """Updates the grid state to keep only the selected cell checked and manages warnings."""
-        self.current_grid.set_selected_cell(row, col)
-
-        # Re-check for warnings
-        data = self.current_grid.find_multiple_checks_and_empty_rows()
-        self.show_selection_frame(data)
-        # If no more warnings, remove the selection frame
-        if not data['empty_rows'] and not data['multiple_detections']:
-            self.selection_frame.destroy()
-            del self.selection_frame
-            self.score.set(value=f"Score:{self.current_grid.calculate_score()}")
+    def _button_on_leave(self, row, cols, event=None):
+        pass
 
 
 app = App("Demo", WIDTH, HEIGHT, [True, True])
