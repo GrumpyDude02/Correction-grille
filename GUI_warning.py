@@ -1,31 +1,38 @@
 import customtkinter as ctk
+from styling import *
 
 class GridButtonFrame(ctk.CTkFrame):
-    def __init__(self, master, row, cols ,call_back_functions, buttons_per_row=1, **kwargs):
+    def __init__(self, master, row, cols, call_back_functions, buttons_per_row=1, **kwargs):
         super().__init__(master, **kwargs)
-        self.configure(fg_color="orange")
+        self.configure(fg_color="#c5d9f7")
         self.row = row
-
         self.buttons_per_row = buttons_per_row
         self.buttons: list[Button] = []
 
-        self.label = ctk.CTkLabel(self, text=f'Ligne {self.row+1}', font=("Arial", 12, "bold"))
+        # Add top border (row 0)
+        self.top_border = ctk.CTkFrame(self, height=2, fg_color=light_blue)
+        self.top_border.grid(row=0, column=0, columnspan=self.buttons_per_row, sticky="ew",pady=(1,0),padx=3)
+
+        # Label (row 1)
+        self.label = ctk.CTkLabel(self, text=f'Ligne {self.row+1}', font=("Arial", 13, "bold"))
         self.label.grid(
-            row=0, column=0, columnspan=self.buttons_per_row, sticky="nsew", pady=(0, 5)
+            row=1, column=0, columnspan=self.buttons_per_row, sticky="nsew", pady=(5, 5), padx=4
         )
-        
-        self.add_buttons(cols,call_back_functions)
 
-    def add_buttons(self, cols_indecies: list[list], call_back_functions:dict[callable]):
+        # Add buttons below (starting at row 2)
+        self.add_buttons(cols, call_back_functions)
 
+    def add_buttons(self, cols_indecies: list[list], call_back_functions: dict[callable]):
         for i, indecies in enumerate(cols_indecies, start=1):
-            self.buttons.append(Button(self, indecies, call_back_functions))
-            row = (i - 1) // self.buttons_per_row + 1
+            self.buttons.append(Button(self, indecies, call_back_functions, font=("Arial", 13, "bold")))
+            row = (i - 1) // self.buttons_per_row + 2  # row offset +2 (border + label)
             col = (i - 1) % self.buttons_per_row
             self.buttons[-1].grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
             self.buttons[-1].configure()
+
         for col in range(self.buttons_per_row):
             self.columnconfigure(col, weight=1)
+
 
 
 class Button(ctk.CTkButton):
@@ -55,26 +62,29 @@ class Button(ctk.CTkButton):
     def on_leave(self, event=None):
         self.on_leave_call_back()
 
-
-class WarningFrame(ctk.CTkFrame):
-    def __init__(self, master, label="Avertissements", row=2):
-        super().__init__(master=master)
-        self.configure(fg_color="black")
+class InteractiveFrame(ctk.CTkFrame):
+    def __init__(self, master, label, color, row_span=2, row=1,**kwargs):
+        super().__init__(master=master,**kwargs,fg_color=color)
         self.grid(
-            row=row, rowspan=2, columnspan=2, column=0, sticky="nsew", padx=7, pady=4
+            row=row, rowspan=row_span, columnspan=2, column=0, sticky="nsew", padx=7, pady=4
         )
-        self.button_frames = []
-
         self.rowconfigure(0, weight=0)
         self.rowconfigure((1, 2), weight=1)
         self.columnconfigure(0, weight=1)
 
-        self.label = ctk.CTkLabel(self, text=label)
-        self.label.grid(column=0, row=0, rowspan=1, columnspan=1, sticky="nsew")
+        self.label = ctk.CTkLabel(self, text=label, font=("Arial", 16, "bold"))
+        self.label.grid(column=0, row=0, rowspan=1, columnspan=1, sticky="nsew",pady=4)
 
-        self.scrollable_frame = ctk.CTkScrollableFrame(self)
+        self.scrollable_frame = ctk.CTkScrollableFrame(self,fg_color="#efefef")
         self.scrollable_frame.grid(column=0, row=1, rowspan = 2, columnspan=1, sticky="nsew", padx=4,pady =(0,4))
-        
+
+class ConflictFrame(InteractiveFrame):
+    def __init__(self, master,row_span=2, row=1,**kwargs):
+        super().__init__(master=master,label="Conflits Détectés",color=light_blue,**kwargs)
+        self.grid(
+            row=row, rowspan=row_span, columnspan=2, column=0, sticky="nsew", padx=7, pady=4
+        )
+        self.button_frames = []
         self.button_frames:list[GridButtonFrame] =[]
 
     def add_button_frame(self, problematic_rows:dict,functions_callback_dict:dict):
@@ -94,3 +104,13 @@ class WarningFrame(ctk.CTkFrame):
         for button_frame in self.button_frames:
             button_frame.destroy()
         self.button_frames.clear()
+        
+class WarningFrame(InteractiveFrame):
+    def __init__(self, master,row_span=2, row=1,**kwargs):
+        super().__init__(master=master,label="Avertissements",color=light_orange,**kwargs)
+        self.configure(fg_color=light_orange)
+        self.grid(
+            row=row, rowspan=row_span, columnspan=2, column=0, sticky="nsew", padx=7, pady=4
+        )
+        self.button_frames = []
+        self.button_frames:list[GridButtonFrame] =[]

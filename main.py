@@ -1,9 +1,11 @@
-import customtkinter as ctk,cv2,openpyxl
+import customtkinter as ctk, cv2, openpyxl
 from constants import *
-from warning import *
+from GUI_warning import ConflictFrame, WarningFrame
+from GUI_cyclebuttons import NavigationButtons
 from PIL import Image, ImageTk
 from convert_pdf import PDFFile
 from grid import Grid
+from styling import *
 
 # TODO: make warning class
 # TODO: Add Errors
@@ -11,14 +13,19 @@ from grid import Grid
 
 
 class ImageViewer(ctk.CTkCanvas):
-    def __init__(self, master, cv_image):
-        super().__init__(master=master, bg="#1F1F1F")  # Set background in constructor
+    def __init__(self, master, row, column, rowspan, columnspan, cv_image):
+        super().__init__(master=master, bg=offwhite)
 
         if App.cv_image is None:
             App.cv_image = cv_image
 
-        self.grid(column=0, columnspan=2, row=0, rowspan=3, sticky="nsew")
-        self.bind("<Configure>", self.resize_callback)
+        self.grid(
+            column=column,
+            columnspan=columnspan,
+            row=row,
+            rowspan=rowspan,
+            sticky="nsew",
+        )
 
         # Zoom and Pan Variables
         self.scale = 1.0
@@ -26,39 +33,58 @@ class ImageViewer(ctk.CTkCanvas):
         self.offset_y = 0
         self.last_x = 0
         self.last_y = 0
+        self.resize_job = None  # For debouncing
 
-        # Bind Mouse Events
-        self.bind("<MouseWheel>", self.zoom)  # Windows & Mac
-        self.bind("<ButtonPress-1>", self.start_pan)  # Left-click to start panning
-        self.bind("<B1-Motion>", self.pan)  # Drag to pan
+        # Bind Events
+        self.bind("<Configure>", self.resize_callback)
+
+        self.bind("<MouseWheel>", self.zoom)  # Windows + trackpad
+        self.bind("<Control-MouseWheel>", self.zoom)  # macOS trackpad
+        self.bind("<Button-4>", self.zoom)  # Linux scroll up
+        self.bind("<Button-5>", self.zoom)  # Linux scroll down
+
+        self.bind("<ButtonPress-1>", self.start_pan)
+        self.bind("<B1-Motion>", self.pan)
         self.bind("<ButtonRelease-1>", self.end_pan)
+
+        # Set initial image size based on canvas size
+        self.initial_scale = 1.0
 
     def resize(self, width, height):
         if App.cv_image is None:
             return
 
-        # Convert BGR (OpenCV) to RGB (PIL)
-        b, g, r = cv2.split(App.cv_image)
-        re_image = cv2.merge((r, g, b))
-        image = Image.fromarray(re_image)
+        # Resize image using OpenCV (faster than PIL)
+        new_size = (
+            max(1, int(App.cv_image.shape[1] * self.scale)),
+            max(1, int(App.cv_image.shape[0] * self.scale)),
+        )
+        resized_cv_img = cv2.resize(
+            App.cv_image, new_size, interpolation=cv2.INTER_LINEAR
+        )
 
-        # Apply Zoom
-        new_size = (int(image.width * self.scale), int(image.height * self.scale))
-        image = image.resize(new_size, Image.LANCZOS)
-
-        # Store as Tkinter-compatible image
+        # Convert BGR to RGB
+        resized_rgb = cv2.cvtColor(resized_cv_img, cv2.COLOR_BGR2RGB)
+        image = Image.fromarray(resized_rgb)
         App.resized_tk_img = ImageTk.PhotoImage(image)
 
     def resize_callback(self, event):
+        if self.resize_job:
+            self.after_cancel(self.resize_job)
+        self.resize_job = self.after(100, self._do_resize)
+
+    def _do_resize(self):
         if App.cv_image is None:
             return
         width, height = self.winfo_width(), self.winfo_height()
+
+        # Adjust scale to fit image into canvas
+        self.scale = min(width / App.cv_image.shape[1], height / App.cv_image.shape[0])
         self.delete("all")
         self.resize(width, height)
         self.redraw_image()
 
     def redraw_image(self):
-        """Redraws the image at the correct position with current zoom and pan."""
         if App.resized_tk_img:
             self.delete("all")
             self.create_image(
@@ -69,14 +95,20 @@ class ImageViewer(ctk.CTkCanvas):
             )
 
     def zoom(self, event):
-        """Zooms in/out using the mouse wheel."""
+        # Determine zoom direction
         zoom_factor = 1.1 if event.delta > 0 else 0.9
+
+        # New scale calculation
         new_scale = self.scale * zoom_factor
 
-        if 0 < new_scale < 3:
+        # Apply zoom limits between 0.2 and 0.55
+        if 0.1 <= new_scale <= 0.55:
             self.scale = new_scale
             self.resize(self.winfo_width(), self.winfo_height())
-            self.redraw_image()
+
+        # Clamp pan offsets to avoid the image going out of bounds
+        self.clamp_offsets()
+        self.redraw_image()
 
     def start_pan(self, event):
         """Records the starting point of a pan."""
@@ -84,50 +116,36 @@ class ImageViewer(ctk.CTkCanvas):
         self.last_y = event.y
 
     def pan(self, event):
-        """Moves the image based on mouse movement."""
         dx = event.x - self.last_x
         dy = event.y - self.last_y
 
         self.offset_x += dx
         self.offset_y += dy
+
+        self.clamp_offsets()
         self.redraw_image()
 
         self.last_x = event.x
         self.last_y = event.y
 
-    def end_pan(self, event):
-        """Stops panning."""
-        pass  # Not needed, but included for future expansion
+    def clamp_offsets(self):
+        """Clamp pan so image doesn't go out of bounds."""
+        if App.resized_tk_img is None:
+            return
 
+        img_w = App.resized_tk_img.width()
+        img_h = App.resized_tk_img.height()
+        canvas_w = self.winfo_width()
+        canvas_h = self.winfo_height()
 
-class NavigationButtons(ctk.CTkFrame):
-    def __init__(self, master):
-        super().__init__(master=master)
-        self.grid(row=3, columnspan=2, column=0, sticky="ew", padx=7, pady=4)
+        max_x = max(0, (img_w - canvas_w) // 2)
+        max_y = max(0, (img_h - canvas_h) // 2)
 
-        self.columnconfigure(0, weight=1, uniform="b")
-        self.columnconfigure(1, weight=1, uniform="b")
-        self.columnconfigure(2, weight=1, uniform="b")
-        self.columnconfigure(3, weight=1, uniform="b")
-        self.columnconfigure(4, weight=1, uniform="b")
+        self.offset_x = max(-max_x, min(max_x, self.offset_x))
+        self.offset_y = max(-max_y, min(max_y, self.offset_y))
 
-        self.previous_file = ctk.CTkButton(self, text="<<")
-        self.previous_file.grid(column=0, row=0, padx=10, pady=15)
-
-        self.next_file = ctk.CTkButton(self, text=">>")
-        self.next_file.grid(column=4, row=0, padx=20, pady=15)
-
-        self.previous_image = ctk.CTkButton(self, text="<")
-        self.previous_image.grid(column=1, row=0, padx=10, pady=15)
-
-        self.next_image = ctk.CTkButton(self, text=">")
-        self.next_image.grid(column=3, row=0, padx=10, pady=15)
-
-    def set_command_functions(self, functions):
-        self.previous_file.configure(command=functions[0])
-        self.previous_image.configure(command=functions[1])
-        self.next_image.configure(command=functions[2])
-        self.next_file.configure(command=functions[3])
+    def end_pan(self, event=None):
+        pass
 
 
 class App:
@@ -144,8 +162,7 @@ class App:
         resizable: list[bool],
         icon_path: str = None,
     ):
-
-        self.after_id = None
+        ctk.set_appearance_mode("light")
         self.width = width
         self.height = height
         self.pdfs: list[PDFFile] = []
@@ -157,53 +174,82 @@ class App:
         self.window.resizable(resizable[0], resizable[1])
         self.window.title(title)
 
-        self.window.columnconfigure((0, 1, 2, 3, 4), weight=1, uniform="a")
-        self.window.rowconfigure((0, 1, 2), weight=1)
-        self.window.rowconfigure(3, weight=0)
+        self.window.columnconfigure((0, 1), weight=2, uniform="b")
+        self.window.columnconfigure((2, 3, 4), weight=1, uniform="b")
+        self.window.rowconfigure(0, weight=1, uniform="b")
+        self.window.rowconfigure(5, weight=1, uniform="b")
+        self.window.rowconfigure(1, weight=0, uniform="b")
+        self.window.rowconfigure((2, 3, 4), weight=2, uniform="b")
+
+        logo_eilco = Image.open("assets/EILCO.png")
+        aspect_ratio_eilco = logo_eilco.width / logo_eilco.height
+        eilco_dimensions = (int(logo_height * aspect_ratio_eilco), logo_height)
+        self.eilco_logo = ctk.CTkImage(light_image=logo_eilco, size=eilco_dimensions)
+        logo_eilco_label = ctk.CTkLabel(self.window, image=self.eilco_logo, text="")
+        
+
+        logo_ulco = Image.open("assets/ULCO.png")
+        aspect_ratio_ulco = logo_ulco.width / logo_ulco.height
+        ulco_dimensions = (int(logo_height * aspect_ratio_ulco), logo_height)
+        self.ulco_logo = ctk.CTkImage(light_image=logo_ulco, size=ulco_dimensions)
+        logo_ulco_label = ctk.CTkLabel(self.window, image=self.ulco_logo, text="")
+
 
         self.rhs_frame = ctk.CTkFrame(self.window)
         self.rhs_frame.grid(
-            row=0, rowspan=4, column=2, columnspan=4, padx=4, pady=10, sticky="nsew"
+            row=0, rowspan=6, column=2, columnspan=3, padx=4, pady=10, sticky="nsew"
         )
 
-        self.rhs_frame.rowconfigure((0, 1, 2, 3, 4), weight=1, uniform="a")
+        self.rhs_frame.rowconfigure((0, 1, 2, 3, 4, 5, 6), weight=1, uniform="a")
+        self.rhs_frame.rowconfigure(6, weight=0)
         self.rhs_frame.columnconfigure((0, 1), weight=1, uniform="a")
 
-        self.warning_frame = WarningFrame(self.rhs_frame)
+        
 
         # Define StringVar variables
         self.grid_type = ctk.StringVar(value="Type de Grille: N/A")
         self.score = ctk.StringVar(value="Score : N/A")
-
+        self.current_pdf_var = ctk.StringVar(value="Fichier PDF: N/A")
+        
         self.grid_type_label = ctk.CTkLabel(self.rhs_frame, textvariable=self.grid_type)
-
         self.score_label = ctk.CTkLabel(
             self.rhs_frame, text="Score: ", textvariable=self.score
         )
-
-        self.export_button = ctk.CTkButton(
-            self.rhs_frame, text="Exporter", command=self.save_file
+        self.current_pdf_label = ctk.CTkLabel(
+            self.window, text="Fichier PDF: ", font=("Arial", 13, "bold"),textvariable=self.current_pdf_var
         )
+        self.show_detected_cells = ctk.CTkCheckBox(self.rhs_frame, text="WireFrame")
         self.add_file_button = ctk.CTkButton(
             self.rhs_frame, text="Ajouter", command=self.open_file
         )
+        self.bottom_bottons = NavigationButtons(self.window, 5, 0, 2)
+        self.image_viewer = ImageViewer(self.window, 2, 0, 3, 2, App.cv_image)
+        self.confilct_frame = ConflictFrame(self.rhs_frame, row=1, row_span=2)
+        self.warning_frame = WarningFrame(self.rhs_frame, row=3, row_span=2)
+        
 
+        
+        logo_ulco_label.grid(row=0, column=1, padx=10, pady=4, sticky="ne")
+        logo_eilco_label.grid(row=0, column=0, padx=10, pady=4, sticky="nw")
         self.grid_type_label.grid(
             row=0, column=0, columnspan=2, padx=10, pady=5, sticky="nsew"
         )
         self.score_label.grid(
-            row=4, column=0, padx=10, columnspan=2, pady=5, sticky="nsew"
+            row=5, column=0, padx=10, columnspan=2, pady=5, sticky="nsew"
         )
-        self.export_button.grid(
-            row=5, column=0, columnspan=1, padx=10, pady=10, sticky="ew"
+        self.show_detected_cells.grid(
+            row=6, column=0, columnspan=1, padx=10, pady=10, sticky="ew"
         )
         self.add_file_button.grid(
-            row=5, column=1, columnspan=1, padx=10, pady=10, sticky="ew"
+            row=6, column=1, columnspan=1, padx=10, pady=10, sticky="ew"
         )
+        self.current_pdf_label.grid(
+            row=1, column=0, columnspan=2, padx=4, pady=0, sticky="ew"
+        )
+        
 
         self.rhs_frame.grid_columnconfigure(0, weight=1)
 
-        self.bottom_bottons = NavigationButtons(self.window)
         self.bottom_bottons.set_command_functions(
             [
                 self.show_previous_pdf,
@@ -222,23 +268,34 @@ class App:
         if icon_path:
             self.window.iconbitmap(icon_path)
 
-        self.image_viewer = ImageViewer(self.window, App.cv_image)
 
     def update(self, data: tuple = None):
-        self.warning_frame.clear()
+        if self.current_grid is not None:
+            self.current_pdf_var.set(f"Fichier PDF: {self.pdfs[self.current_pdf].path.split('/')[-1]}")
+        self.confilct_frame.clear()
+        self.update_displayed_score()
         if data is None:
             return
         App.cv_image = data["image"]
         self.grid_type.set(value=data["type"].value)
+        print(data["type"].value)
         self.image_viewer.after(
             10, lambda: self.image_viewer.event_generate("<Configure>")
         )
 
-        error_rows: dict = self.current_grid.get_problematic_cells_per_row()
-        if not error_rows:
-            return
-        self.warning_frame.add_button_frame(error_rows,self.cell_buttons_callback)
-        self.warning_frame.show_button_frames()
+        problematic_rows: dict = self.current_grid.get_problematic_cells_per_row()
+        self.confilct_frame.add_button_frame(
+            problematic_rows, self.cell_buttons_callback
+        )
+        self.confilct_frame.show_button_frames()
+
+        warnings = self.current_grid.get_warnings_errors()
+
+        if not self.confilct_frame.button_frames:
+            self.update_displayed_score(self.current_grid.calculate_score())
+
+    def update_displayed_score(self, value: str | float = "N/A"):
+        self.score.set(value=f"Score: {value}")
 
     def _set_current_grid(self, event=None):
         self.update(self.current_grid.run_analysis())
@@ -318,12 +375,11 @@ class App:
         self.update()
         self.window.mainloop()
 
-    def _button_on_click(self,button_frame, row, cols, event=None):
-        self.current_grid.set_selected_cell(row,cols)
-        self.warning_frame.destroy_frame(button_frame)
-        if not self.warning_frame.button_frames:
-            self.score.set(value=f"Score: {self.current_grid.calculate_score()}")
-            
+    def _button_on_click(self, button_frame, row, cols, event=None):
+        self.current_grid.set_selected_cell(row, cols)
+        self.confilct_frame.destroy_frame(button_frame)
+        if not self.confilct_frame.button_frames:
+            self.update_displayed_score(self.current_grid.calculate_score())
 
     def _button_on_hover(self, row, cols, event=None):
         pass

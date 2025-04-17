@@ -5,9 +5,6 @@ import constants as cst
 from enum import Enum
 
 
-# TODO : Add something to handle missing cells
-
-
 class GridType(Enum):
     Unknown = "Unknown"
     PFE_Finale = "Grille Projet Fin d'Etude - Finale"
@@ -29,10 +26,13 @@ class Grid:
     def __init__(self, cv_image: np.ndarray):
 
         # to change, absolutely
+        self.type = GridType.Unknown
+        self.collisions_per_checkmark_per_row={}
+        self.checkmark_bboxes = []
+        self.expected_row_cols = (0, 0)
         self.detect_type_n_rotation(cv_image)
         self.drawn_og_img = self.original_matrix.copy()
         self.middle_x = self.original_matrix.shape[1] // 2
-        self.expected_row_cols = (0, 0)
         self.gray_img = None
         self.binary_img = None
         self.inverted_img = None
@@ -40,11 +40,8 @@ class Grid:
         self.no_lines = None
         self.sorted_cells = None
         self.cells_state = None
-        self.type = GridType.Unknown
         self.warnings = None
-        self.collisions_per_checkmark_per_row={}
-        self.checkmark_bboxes = []
-
+        
     def detect_type_n_rotation(self,original_img):
         qcd = cv2.QRCodeDetector()
         decoded_info, points, _ = qcd.detectAndDecode(original_img)
@@ -235,7 +232,7 @@ class Grid:
 
         
         offset_cells = [tools.add_offset_bbox(row,(-x,-y)) for row in self.sorted_cells]
-        self.collisions_per_checkmark_per_row = self.get_occupied_cells_per_row(offset_cells)
+        self.collisions_per_checkmark_per_row = self._get_occupied_cells_per_row(offset_cells)
 
 
     def change_cell_color(self,row,col,color_code):
@@ -304,37 +301,9 @@ class Grid:
                     score += row[j][0] * j * 0.2 * multiplier
         return ((score/ponderation)*20)
 
-
-    def get_warnings(self):
-        n_cells = 0
-        for i in range(len(self.sorted_cells)):
-            for j in range(len(self.sorted_cells[i])):
-                n_cells += 1
-        min_cells_row = len(self.sorted_cells[0])
-
-        for i in range(len(self.sorted_cells)):
-            t = len(self.sorted_cells[0])
-            min_cells_row = t if t < min_cells_row else min_cells_row
-
-        if self.type is GridType.Unknown and (
-            self.expected_row_cols[0] != min_cells_row
-            or self.expected_row_cols[0] * self.expected_row_cols[1] != n_cells
-        ):
-            pass
-    
-    def get_errors(self):
-        return
-    
-    def get_problematic_cells_per_row(self):
-        problematic_rows = {}
-        for key,value in self.collisions_per_checkmark_per_row.items():
-            if len(value)>1:
-                problematic_rows[key] = value
-        
-        return problematic_rows
         
         
-    def get_occupied_cells_per_row(self,offset_cells):
+    def _get_occupied_cells_per_row(self,offset_cells):
         collisions:dict[int:list] = {}
         collisions_per_checkmark_per_row = {}
         for index, bbox in enumerate(self.checkmark_bboxes):
@@ -406,3 +375,35 @@ class Grid:
                 self.cells_state[row][cols[1]] = [0.5,0]
             else:
                 self.cells_state[row][cols[0]] = [1,0]
+                
+    def get_warnings_errors(self):
+        """a ce stade cette fonction ne retourne que les avertissements"""
+        warnings=[]
+        errors = []
+        n_cells = 0
+        for i in range(len(self.sorted_cells)):
+            for j in range(len(self.sorted_cells[i])):
+                n_cells += 1
+        min_cells_row = len(self.sorted_cells[0])
+
+        for i in range(len(self.sorted_cells)):
+            t = len(self.sorted_cells[0])
+            min_cells_row = t if t < min_cells_row else min_cells_row
+
+        if self.type is GridType.Unknown:
+            warnings.append("Type de grille inconnue")
+        if (
+            self.expected_row_cols[0] != min_cells_row
+            or self.expected_row_cols[0] * self.expected_row_cols[1] != n_cells
+        ):
+            warnings.append("Le nombre de cellules détectées ne correspond pas au nombre attendu.")
+        
+        return warnings
+    
+    
+    def get_problematic_cells_per_row(self):
+        problematic_rows = {}
+        for key,value in self.collisions_per_checkmark_per_row.items():
+            if len(value)>1:
+                problematic_rows[key] = value
+        return problematic_rows
