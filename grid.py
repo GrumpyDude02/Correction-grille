@@ -31,33 +31,31 @@ Méthodes de la classe `Grid`:
     - Détecte le type et la rotation de la grille.
 2. `detect_type_n_rotation(original_img)`:
     - Détecte le type de grille à partir d'un QR code et ajuste la rotation de l'image.
-3. `_preprocess()`:
+3. `_pretraitement()`:
     - Prétraite l'image pour la convertir en niveaux de gris, binariser et inverser les couleurs.
-4. `_isolate_lines()`:
+4. `_extraction_lignes()`:
     - Isole les lignes horizontales et verticales de la grille à l'aide d'opérations morphologiques.
-5. `_extract_cells()`:
+5. `_extraction_cellules()`:
     - Extrait les cellules de la grille en détectant les contours et en triant les boîtes englobantes.
-6. `_isolate_checkmarks()`:
+6. `_extraction_croix()`:
     - Isole les croix de vérification (checkmarks) en supprimant les lignes et en appliquant des opérations morphologiques.
-7. `change_cell_color(row, col, color_code)`:
-    - Change la couleur d'une cellule spécifique.
-8. `_draw_cells_bboxs()`:
+7. `_draw_cells_bboxs()`:
     - Dessine les boîtes englobantes des cellules et des croix de vérification sur l'image originale.
-9. `save_imgs(folder)`:
+8. `_save_imgs(folder)`:
     - Sauvegarde les images intermédiaires dans un dossier spécifié.
-10. `run_analysis()`:
+9. `run_analysis()`:
     - Exécute l'analyse complète de la grille et retourne l'image annotée et le type de grille.
-11. `calculate_score()`:
+10. `calculate_score()`:
     - Calcule un score basé sur l'état des cellules.
-12. `_get_occupied_cells_per_row(offset_cells)`:
+11. `_get_occupied_cells_per_row(offset_cells)`:
     - Identifie les cellules occupées par les croix de vérification pour chaque ligne.
-13. `update_cell_state_color()`:
+12. `update_cell_state_color()`:
     - Met à jour les couleurs des cellules en fonction de leur état.
-14. `set_selected_cell(row, cols)`:
+13. `set_selected_cell(row, cols)`:
     - Définit une cellule sélectionnée et désélectionne les autres.
-15. `get_warnings_errors()`:
+14. `get_warnings_errors()`:
     - Retourne les avertissements et erreurs détectés lors de l'analyse de la grille.
-16. `get_problematic_cells_per_row()`:
+15. `get_problematic_cells_per_row()`:
     - Retourne les lignes contenant des cellules problématiques (par exemple, plusieurs croix de vérification).
 """
 
@@ -570,7 +568,7 @@ class Grid:
         
         for i, row in enumerate(self.sorted_cells):
             # Pondération double pour les lignes > 19
-            multiplier = 2 if i > 19 else 1  
+            multiplier = 2 if (i > 19 and self.type == GridType.PFE_Finale)  else 1  
             
             # Vérification cases cochées
             has_checked = any(cell[0] > 0 for cell in self.cells_state[i])
@@ -613,7 +611,7 @@ class Grid:
         
         # Vérification type de grille
         if self.type is GridType.Unknown:
-            warnings.append("Type de grille inconnu")
+            warnings.append("Type de grille inconnu. le calcule effectué ne sera pas fiable.")
             
         # Vérification nombre de cellules
         expected_total = self.expected_row_cols[0] * self.expected_row_cols[1]

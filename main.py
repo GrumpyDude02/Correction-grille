@@ -309,65 +309,66 @@ class App:
             f"{grid_index + 1} / {grid_count} images"
         )
         self.update(self.current_grid.run_analysis())
+        
+    def _load_pdf_and_grid(self, index_func=None, grid_func=None):
+        """
+        Fonction utilitaire centrale permettant de charger un fichier PDF et une grille.
+        Elle est utilisée pour éviter la répétition de code dans les fonctions de navigation.
+        - `index_func` : fonction pour déterminer l'index du PDF à charger (ex: suivant, précédent…)
+        - `grid_func` : fonction pour déterminer quelle grille afficher (ex: grille suivante…)
+        """
+        if not self.pdfs:
+            return  # Aucun fichier PDF chargé
+
+        if self.current_pdf_index is None:
+            self.current_pdf_index = 0  # On démarre avec le premier fichier
+        elif index_func:
+            self.current_pdf_index = index_func(self.current_pdf_index)  # Applique la logique d’index
+
+        pdf: PDFFile = self.pdfs[self.current_pdf_index]
+        pdf.extract_grids()  # Extraction des grilles du fichier
+
+        if grid_func:
+            self.current_grid, grid_index = grid_func(pdf)  # Grille définie via une fonction
+        else:
+            self.current_grid, grid_index = pdf.get_next_grid()  # Par défaut, la grille suivante
+
+        self._set_current_grid(grid_index, pdf.get_count())  # Mise à jour de l’interface
 
     def _show_latest_file(self, event=None):
-        if self.current_pdf_index is None:
-            self.current_pdf_index = 0
-        else:
-            self.current_pdf_index = len(self.pdfs) - 1
-        self.pdfs[self.current_pdf_index].extract_grids()
-        self.current_grid, grid_index = self.pdfs[
-            self.current_pdf_index
-        ].get_next_grid()
-        self._set_current_grid(
-            grid_index, self.pdfs[self.current_pdf_index].get_count()
-        )
+        """
+        Affiche le dernier fichier PDF de la liste.
+        Utilisé pour charger le fichier le plus récent ou le dernier dans l’ordre.
+        """
+        self._load_pdf_and_grid(index_func=lambda _: len(self.pdfs) - 1)
+
 
     def show_next_pdf(self, event=None):
-        if not self.pdfs or self.current_pdf_index is None:
-            return
-        self.current_pdf_index = (self.current_pdf_index + 1) % len(self.pdfs)
-        self.pdfs[self.current_pdf_index].extract_grids()
-        self.current_grid, grid_index = self.pdfs[
-            self.current_pdf_index
-        ].get_next_grid()
-
-        self._set_current_grid(
-            grid_index, self.pdfs[self.current_pdf_index].get_count()
-        )
-
+        """
+        Passe au fichier PDF suivant dans la liste.
+        Fait une rotation circulaire : après le dernier, revient au premier.
+        """
+        self._load_pdf_and_grid(index_func=lambda i: (i + 1) % len(self.pdfs))
+    
     def show_previous_pdf(self, event=None):
-        if not self.pdfs or self.current_pdf_index is None:
-            return
-        self.current_pdf_index = (self.current_pdf_index + 1) % len(self.pdfs)
-        self.pdfs[self.current_pdf_index].extract_grids()
-        self.current_grid, grid_index = self.pdfs[
-            self.current_pdf_index
-        ].get_previous_grid()
+        """
+        Passe au fichier PDF précédent dans la liste.
+        Fait une rotation circulaire : avant le premier, passe au dernier.
+        """
+        self._load_pdf_and_grid(index_func=lambda i: (i - 1) % len(self.pdfs))
 
-        self._set_current_grid(
-            grid_index, self.pdfs[self.current_pdf_index].get_count()
-        )
 
-    def show_next_grid(self, event=None):
-        if not self.pdfs or self.current_pdf_index is None:
-            return
-        self.current_grid, grid_index = self.pdfs[
-            self.current_pdf_index
-        ].get_next_grid()
-        self._set_current_grid(
-            grid_index, self.pdfs[self.current_pdf_index].get_count()
-        )
 
     def show_previous_grid(self, event=None):
-        if not self.pdfs or self.current_pdf_index is None:
-            return
-        self.current_grid, grid_index = self.pdfs[
-            self.current_pdf_index
-        ].get_previous_grid()
-        self._set_current_grid(
-            grid_index, self.pdfs[self.current_pdf_index].get_count()
-        )
+        """
+        Affiche la grille précédente du PDF courant.
+        Permet de revenir en arrière dans la navigation des grilles.
+        """
+        self._load_pdf_and_grid(grid_func=lambda pdf: pdf.get_previous_grid())
+
+
+    def show_previous_grid(self, event=None):
+        self._load_pdf_and_grid(grid_func=lambda pdf: pdf.get_previous_grid())
 
     def open_file(self, event=None):
         file_paths = ctk.filedialog.askopenfilenames(
