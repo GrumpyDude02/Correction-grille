@@ -1,18 +1,24 @@
 # Projet Bureau d'Etude Technique
-## Correction automatique des grille de stages
+## Correction automatique des grilles de stage
 Ce répertoire contient le code source du projet technique dédié à la **correction automatique des grilles de stage**.
 
+<p align="center">
+<img src="assets/logo_app.png" alt="Logo" width="350" /></p>
+
 ---
+
+### Interface utilisateur
+![UI](assets/ui.png)
 
 ### Exemple d’image
 
 Voici une image utilisée comme exemple pour illustrer les différentes étapes du traitement :
 
-![image_originale](temp/0original.png)
+![image_originale](assets/0original.png)
 
 ---
 
-### ⚙️ Modifications apportées à la grille
+### Modifications apportées à la grille
 
 Afin de faciliter le traitement automatique, nous avons modifié la grille comme suit :
 
@@ -24,7 +30,7 @@ Afin de faciliter le traitement automatique, nous avons modifié la grille comme
 
 Utilisation de cette image pour démontrer le fonctionnement du système étape par étape.
 
-### ⚠️ Remarque
+### Remarque
 
 > Le code QR de cette image contient volontairement une **erreur** : il indique **28 lignes** alors qu’il y en a en réalité **26**.  
 > Cette incohérence a été utile pour :
@@ -41,7 +47,7 @@ Avant toute analyse, l'image subit un ensemble de transformations afin d'amélio
 
 ---
 
-### Détection du type de grille & redressement
+### 1.1. Détection du type de grille & redressement
 
 Un **QR code** est intégré dans la grille pour encoder :
 - Le type de grille
@@ -51,15 +57,15 @@ Cela permet de corriger automatiquement l'inclinaison de l'image et d'adapter le
 
 ---
 
-### Conversion en niveaux de gris
+### 1.2. Conversion en niveaux de gris
 
 La première étape visuelle consiste à convertir l'image couleur en **niveau de gris**, ce qui simplifie les traitements suivants :
 
-![niveau_de_gris](temp/1niveau_gris.png)
+![niveau_de_gris](assets/1niveau_gris.png)
 
 ---
 
-### Binarisation adaptative
+### 1.3. Binarisation adaptative
 
 L’image en niveaux de gris est ensuite **binarisée** grâce à un seuillage local, qui s’adapte aux variations d’éclairage.  
 On utilise la méthode `ADAPTIVE_THRESH_GAUSSIAN_C` de OpenCV avec les paramètres suivants :
@@ -70,16 +76,16 @@ On utilise la méthode `ADAPTIVE_THRESH_GAUSSIAN_C` de OpenCV avec les paramètr
 
 Cela produit une image en noir et blanc plus robuste, même en cas d’éclairage inégal :
 
-![binaire](temp/2binaire.png)
+![binaire](assets/2binaire.png)
 
 ---
 
-### Filtrage & inversion
+### 1.4. Filtrage & inversion
 
 L'image est ensuite **inversée** (noir ⇄ blanc) pour faciliter les détections de lignes et coches.  
 On applique aussi un **filtrage** pour réduire les petits bruits indésirables.
 
-![binaire_inversée](temp/3inverse.png)
+![binaire_inversée](assets/3inverse.png)
 
 
 
@@ -107,7 +113,7 @@ Cela permet d'effacer les petites perturbations et de renforcer la structure hor
 
 Résultat :
 
-![image_erodée_lignes_horizontales](temp/4lignes_horizontales_erosion.png)
+![image_erodée_lignes_horizontales](assets/4lignes_horizontales_erosion.png)
 
 ---
 
@@ -121,7 +127,7 @@ Cette étape reconstruit les lignes nettes sur l’image en supprimant les rési
 
 Résultat :
 
-![image_dilatée_lignes_horizontales](temp/5lignes_horizontales_finale.png)
+![image_dilatée_lignes_horizontales](assets/5lignes_horizontales_finale.png)
 
 ### 2.2. Détection des lignes verticales
 
@@ -139,7 +145,7 @@ Cela permet de réduire les éléments non-pertinents et de préserver uniquemen
 
 Résultat :
 
-![image_erodée_lignes_verticales](temp/6lignes_verticales_erosion.png)
+![image_erodée_lignes_verticales](assets/6lignes_verticales_erosion.png)
 
 ---
 
@@ -153,13 +159,13 @@ Cette étape permet de redonner aux lignes verticales leur pleine largeur.
 
 Résultat :
 
-![image_dilatée_lignes_verticales](temp/7lignes_verticales_finale.png)
+![image_dilatée_lignes_verticales](assets/7lignes_verticales_finale.png)
 
 #### Combinaison des deux images avec un OU logique:
 
 Résultat : 
 
-![image_avec_lignes](temp/8lignes_combines.png)
+![image_avec_lignes](assets/8lignes_combines.png)
 
 ## 3. Extraction des Cellules
 
@@ -169,7 +175,7 @@ Résultat :
 - **Méthode** : Découpage vertical au milieu de l'image
 - **Résultat** : Concentration sur la partie contenant les cellules
 
-![Moitié droite isolée](temp/9moitie_droite_lignes_combines.png)
+![Moitié droite isolée](assets/9moitie_droite_lignes_combines.png)
 
 ---
 
@@ -183,8 +189,8 @@ Résultat :
   En trouvant le plus grand contours, nous pouvons ensuites exploiter les coordonnées du rectangles qui l'englobe pour mieux affiner l'analyse
 - **Paramètres** : Approximation polygonale à 2% de précision
 
-![](temp/plus_grand_contour.png)
-![Cadre principal détecté](temp/10roi_lignes_combinees.png)
+![](assets/plus_grand_contour.png)
+![Cadre principal détecté](assets/10roi_lignes_combinees.png)
 
 ---
 
@@ -195,7 +201,7 @@ Résultat :
   - Réduction d'épaisseur des lignes à 1px
   - Séparation claire des cellules adjacentes
 
-![Lignes optimisées](temp/11roi_lignes_combines_minces.png)
+![Lignes optimisées](assets/11roi_lignes_combines_minces.png)
 
 ---
 
@@ -223,7 +229,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 - **Méthode** : Soustraction des lignes verticales détectées
 - **Résultat** : Conservation uniquement des éléments non-structuraux
 
-![Image sans lignes verticales](temp/12sans_lignes_verticales.png)
+![Image sans lignes verticales](assets/12sans_lignes_verticales.png)
 
 ---
 
@@ -233,7 +239,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 - **Coordonnées** : Basées sur le cadre principal détecté
 - **Précision** : Ajustement selon la première cellule
 
-![Zone d'intérêt découpée](temp/13sans_lignes_verticales_roi.png)
+![Zone d'intérêt découpée](assets/13sans_lignes_verticales_roi.png)
 
 ---
 
@@ -244,7 +250,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
   - Élimination des petits artefacts
   - Lissage des contours irréguliers
 
-![Après ouverture morphologique](temp/14sans_lignes_verticales_roi_ouverture.png)
+![Après ouverture morphologique](assets/14sans_lignes_verticales_roi_ouverture.png)
 
 ---
 
@@ -255,7 +261,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
   - Noyau horizontal (1x7)
   - 3 itérations
 
-![Éléments reconnectés](temp/15dilatee_roi_ouverture.png)
+![Éléments reconnectés](assets/15dilatee_roi_ouverture.png)
 
 ---
 
@@ -266,7 +272,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 | Masque Horizontal | Résultat après soustraction |
 |-------|-------|
-| ![Masque horizontal appliqué](temp/16masque_lignes_horizontales.png)| ![Résultat après soustraction](temp/17dilatee_roi_ouverture_sans_lignes_horizontales.png)|
+| ![Masque horizontal appliqué](assets/16masque_lignes_horizontales.png)| ![Résultat après soustraction](assets/17dilatee_roi_ouverture_sans_lignes_horizontales.png)|
 
 ---
 
@@ -277,7 +283,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 | Avant | Après |
 |-------|-------|
-| ![Avant post-traitement](temp/17dilatee_roi_ouverture_sans_lignes_horizontales.png) | ![Après post-traitement](temp/19dilatee_roi_ouverture_sans_lignes_horizontales_ouverture.png) |
+| ![Avant post-traitement](assets/17dilatee_roi_ouverture_sans_lignes_horizontales.png) | ![Après post-traitement](assets/19dilatee_roi_ouverture_sans_lignes_horizontales_ouverture.png) |
 
 ---
 
@@ -286,7 +292,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 - **Objectif** : Éliminer les faux positifs
 - **Méthode** : Intersection avec l'image inversée originale
 
-![Filtrage final](temp/20et_logique_img-dilatee_img-inversee.png)
+![Filtrage final](assets/20et_logique_img-dilatee_img-inversee.png)
 
 ---
 
@@ -297,4 +303,4 @@ approximation = 0.1 * cv2.arcLength(contour, True)
   - Forme compacte
   - Position intra-cellule
 
-![Contours détectés](temp/21contours_checkmarks_img.png)
+![Contours détectés](assets/21contours_checkmarks_img.png)

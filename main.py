@@ -174,6 +174,7 @@ class App:
 
         self.window = ctk.CTk()
         self.window.geometry(f"{self.width}x{self.height}")
+        self.window.minsize(width, height)
         self.window.resizable(resizable[0], resizable[1])
         self.window.title(title)
 
@@ -430,5 +431,5 @@ class App:
         self.image_viewer._do_resize(keep_scale=True)
 
 
-app = App("Demo", WIDTH, HEIGHT, [True, True])
+app = App(APP_NAME, WIDTH, HEIGHT, [True, True],icon_path="assets/logo_app.ico")
 app.run()
