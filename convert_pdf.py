@@ -1,5 +1,6 @@
-import pymupdf,cv2,numpy as np
+import pymupdf, cv2, numpy as np
 from grid import Grid
+
 """
 Module: convert_pdf
 Ce module contient une classe `PDFFile` qui permet de manipuler des fichiers PDF pour extraire des images et les convertir en grilles exploitables.
@@ -49,6 +50,7 @@ Notes:
 - Les images sont converties en tableaux OpenCV pour faciliter leur manipulation.
 """
 
+
 # Classe représentant un fichier PDF et fournissant des méthodes pour extraire et manipuler des images
 class PDFFile:
     def __init__(self, path) -> None:
@@ -60,7 +62,9 @@ class PDFFile:
             # Lève une exception si le fichier n'existe pas ou n'est pas trouvé
             raise FileNotFoundError
         self.path = path  # Chemin du fichier PDF
-        self._raw_images_dict = []  # Liste pour stocker les données brutes des images extraites
+        self._raw_images_dict = (
+            []
+        )  # Liste pour stocker les données brutes des images extraites
         self.grids: list[Grid] = []  # Liste des grilles générées à partir des images
         self.current_grid = None  # Index de la grille actuellement sélectionnée
 
@@ -73,35 +77,57 @@ class PDFFile:
             for image in images:
                 self.grids.append(Grid(image))
 
+    def get_count(self):
+        return len(self.grids)  # Retourne le nombre de grilles disponibles
+
     def get_current_grid(self):
         """Retourne la grille actuellement sélectionnée"""
         if not self.grids:
             return None  # Retourne None si aucune grille n'est disponible
         if self.current_grid is None:
-            self.current_grid = 0  # Initialise à la première grille si aucune n'est sélectionnée
-        return self.grids[self.current_grid]
+            self.current_grid = (
+                0  # Initialise à la première grille si aucune n'est sélectionnée
+            )
+        return (
+            self.grids[self.current_grid],
+            self.current_grid,
+        )  # Retourne la grille actuelle et son index
 
     def get_next_grid(self):
         """Passe à la grille suivante et la retourne"""
         if not self.grids:
             return None  # Retourne None si aucune grille n'est disponible
         if self.current_grid is None:
-            self.current_grid = 0  # Initialise à la première grille si aucune n'est sélectionnée
+            self.current_grid = (
+                0  # Initialise à la première grille si aucune n'est sélectionnée
+            )
         else:
             self.current_grid += 1  # Passe à l'index suivant
-            self.current_grid %= len(self.grids)  # Revient au début si la fin est atteinte
-        return self.grids[self.current_grid]
+            self.current_grid %= len(
+                self.grids
+            )  # Revient au début si la fin est atteinte
+        return (
+            self.grids[self.current_grid],
+            self.current_grid,
+        )  # Retourne la grille actuelle et son index
 
     def get_previous_grid(self):
         """Passe à la grille précédente et la retourne"""
         if not self.grids:
             return None  # Retourne None si aucune grille n'est disponible
         if self.current_grid is None:
-            self.current_grid = 0  # Initialise à la première grille si aucune n'est sélectionnée
+            self.current_grid = (
+                0  # Initialise à la première grille si aucune n'est sélectionnée
+            )
         else:
             self.current_grid -= 1  # Passe à l'index précédent
-            self.current_grid %= len(self.grids)  # Revient à la fin si le début est atteint
-        return self.grids[self.current_grid]
+            self.current_grid %= len(
+                self.grids
+            )  # Revient à la fin si le début est atteint
+        return (
+            self.grids[self.current_grid],
+            self.current_grid,
+        )  # Retourne la grille actuelle et son index
 
     def extract_images(self):
         """
@@ -109,7 +135,9 @@ class PDFFile:
         Sinon, effectue un rendu de la page à 300 PPI.
         """
         if self._raw_images_dict:
-            return self._raw_images_dict  # Si les images sont déjà extraites, on les retourne directement
+            return (
+                self._raw_images_dict
+            )  # Si les images sont déjà extraites, on les retourne directement
         for i in range(len(self.file)):
             page = self.file.load_page(i)
             page_width, page_height = page.rect.width, page.rect.height
@@ -137,14 +165,15 @@ class PDFFile:
                 # Aucune image adéquate – on effectue un rendu de la page en 300 PPI
                 pix = page.get_pixmap(dpi=300)
                 image_bytes = pix.tobytes("png")
-                self._raw_images_dict.append({
-                    "image": image_bytes,
-                    "width": pix.width,
-                    "height": pix.height,
-                    "ext": "png"
-                })
+                self._raw_images_dict.append(
+                    {
+                        "image": image_bytes,
+                        "width": pix.width,
+                        "height": pix.height,
+                        "ext": "png",
+                    }
+                )
         return self._raw_images_dict.copy()
-
 
     def save_images(self):
         """Sauvegarde les images extraites dans un répertoire local"""

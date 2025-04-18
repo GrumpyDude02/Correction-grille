@@ -73,14 +73,16 @@ class ImageViewer(ctk.CTkCanvas):
             self.after_cancel(self.resize_job)
         self.resize_job = self.after(100, self._do_resize)
 
-    def _do_resize(self,keep_scale=False):
+    def _do_resize(self, keep_scale=False):
         if App.cv_image is None:
             return
         width, height = self.winfo_width(), self.winfo_height()
 
         # Adjust scale to fit image into canvas
         if not keep_scale:
-            self.scale = min(width / App.cv_image.shape[1], height / App.cv_image.shape[0])
+            self.scale = min(
+                width / App.cv_image.shape[1], height / App.cv_image.shape[0]
+            )
         self.delete("all")
         self.resize(width, height)
         self.redraw_image()
@@ -167,7 +169,7 @@ class App:
         self.width = width
         self.height = height
         self.pdfs: list[PDFFile] = []
-        self.current_pdf: int | None = None
+        self.current_pdf_index: int | None = None
         self.current_grid: Grid | None = None
 
         self.window = ctk.CTk()
@@ -187,14 +189,12 @@ class App:
         eilco_dimensions = (int(logo_height * aspect_ratio_eilco), logo_height)
         self.eilco_logo = ctk.CTkImage(light_image=logo_eilco, size=eilco_dimensions)
         logo_eilco_label = ctk.CTkLabel(self.window, image=self.eilco_logo, text="")
-        
 
         logo_ulco = Image.open("assets/ULCO.png")
         aspect_ratio_ulco = logo_ulco.width / logo_ulco.height
         ulco_dimensions = (int(logo_height * aspect_ratio_ulco), logo_height)
         self.ulco_logo = ctk.CTkImage(light_image=logo_ulco, size=ulco_dimensions)
         logo_ulco_label = ctk.CTkLabel(self.window, image=self.ulco_logo, text="")
-
 
         self.rhs_frame = ctk.CTkFrame(self.window)
         self.rhs_frame.grid(
@@ -205,21 +205,26 @@ class App:
         self.rhs_frame.rowconfigure(6, weight=0)
         self.rhs_frame.columnconfigure((0, 1), weight=1, uniform="a")
 
-        
-
         # Define StringVar variables
         self.grid_type = ctk.StringVar(value="Type de Grille: N/A")
         self.score = ctk.StringVar(value="Score : N/A")
-        self.current_pdf_var = ctk.StringVar(value="Fichier PDF: N/A")
-        
-        self.grid_type_label = ctk.CTkLabel(self.rhs_frame, textvariable=self.grid_type, font=font1)
+        self.current_pdf_var = ctk.StringVar(value="Aucun fichier PDF ouvert")
+
+        self.grid_type_label = ctk.CTkLabel(
+            self.rhs_frame, textvariable=self.grid_type, font=font1
+        )
         self.score_label = ctk.CTkLabel(
             self.rhs_frame, text="Score: ", textvariable=self.score, font=font1
         )
         self.current_pdf_label = ctk.CTkLabel(
-            self.window, text="Fichier PDF: ", font=font1,textvariable=self.current_pdf_var
+            self.window,
+            text="Fichier PDF: ",
+            font=font1,
+            textvariable=self.current_pdf_var,
         )
-        self.show_detected_cells = ctk.CTkCheckBox(self.rhs_frame, text="WireFrame",command=self.draw_detected_cells)
+        self.show_detected_cells = ctk.CTkCheckBox(
+            self.rhs_frame, text="WireFrame", command=self.draw_detected_cells
+        )
         self.add_file_button = ctk.CTkButton(
             self.rhs_frame, text="Ajouter", command=self.open_file
         )
@@ -227,9 +232,7 @@ class App:
         self.image_viewer = ImageViewer(self.window, 2, 0, 3, 2, App.cv_image)
         self.confilct_frame = ConflictFrame(self.rhs_frame, row=1, row_span=2)
         self.warning_frame = WarningFrame(self.rhs_frame, row=3, row_span=2)
-        
 
-        
         logo_ulco_label.grid(row=0, column=1, padx=10, pady=4, sticky="ne")
         logo_eilco_label.grid(row=0, column=0, padx=10, pady=4, sticky="nw")
         self.grid_type_label.grid(
@@ -247,7 +250,6 @@ class App:
         self.current_pdf_label.grid(
             row=1, column=0, columnspan=2, padx=4, pady=0, sticky="ew"
         )
-        
 
         self.rhs_frame.grid_columnconfigure(0, weight=1)
 
@@ -269,10 +271,11 @@ class App:
         if icon_path:
             self.window.iconbitmap(icon_path)
 
-
     def update(self, data: tuple = None):
         if self.current_grid is not None:
-            self.current_pdf_var.set(f"Fichier PDF: {self.pdfs[self.current_pdf].path.split('/')[-1]}")
+            self.current_pdf_var.set(
+                f"Fichier PDF: {self.pdfs[self.current_pdf_index].path.split('/')[-1]}"
+            )
         self.confilct_frame.clear()
         self.warning_frame.clear()
         self.update_displayed_score()
@@ -288,7 +291,7 @@ class App:
         self.confilct_frame.add_button_frames(
             problematic_rows, self.cell_buttons_callback
         )
-        
+
         self.warning_frame.add_warnings(self.current_grid.get_warnings_errors())
 
         if not self.confilct_frame.button_frames:
@@ -299,47 +302,71 @@ class App:
             self.score.set(value=f"Score: {value}")
         else:
             self.score.set(value=f"Score: {value:.2f}")
-            
 
-    def _set_current_grid(self, event=None):
+    def _set_current_grid(self, grid_index, grid_count, event=None):
+        self.bottom_bottons.current_pdf_grid_count_var.set(
+            f"{grid_index + 1} / {grid_count} images"
+        )
         self.update(self.current_grid.run_analysis())
 
     def _show_latest_file(self, event=None):
-        if self.current_pdf is None:
-            self.current_pdf = 0
+        if self.current_pdf_index is None:
+            self.current_pdf_index = 0
         else:
-            self.current_pdf = len(self.pdfs) - 1
-        self.pdfs[self.current_pdf].extract_grids()
-        self.current_grid = self.pdfs[self.current_pdf].get_next_grid()
-        self._set_current_grid()
+            self.current_pdf_index = len(self.pdfs) - 1
+        self.pdfs[self.current_pdf_index].extract_grids()
+        self.current_grid, grid_index = self.pdfs[
+            self.current_pdf_index
+        ].get_next_grid()
+        self._set_current_grid(
+            grid_index, self.pdfs[self.current_pdf_index].get_count()
+        )
 
     def show_next_pdf(self, event=None):
-        if not self.pdfs or self.current_pdf is None:
+        if not self.pdfs or self.current_pdf_index is None:
             return
-        self.current_pdf = (self.current_pdf + 1) % len(self.pdfs)
-        self.pdfs[self.current_pdf].extract_grids()
-        self.current_grid = self.pdfs[self.current_pdf].get_next_grid()
-        self._set_current_grid()
+        self.current_pdf_index = (self.current_pdf_index + 1) % len(self.pdfs)
+        self.pdfs[self.current_pdf_index].extract_grids()
+        self.current_grid, grid_index = self.pdfs[
+            self.current_pdf_index
+        ].get_next_grid()
+
+        self._set_current_grid(
+            grid_index, self.pdfs[self.current_pdf_index].get_count()
+        )
 
     def show_previous_pdf(self, event=None):
-        if not self.pdfs or self.current_pdf is None:
+        if not self.pdfs or self.current_pdf_index is None:
             return
-        self.current_pdf = (self.current_pdf + 1) % len(self.pdfs)
-        self.pdfs[self.current_pdf].extract_grids()
-        self.current_grid = self.pdfs[self.current_pdf].get_previous_grid()
-        self._set_current_grid()
+        self.current_pdf_index = (self.current_pdf_index + 1) % len(self.pdfs)
+        self.pdfs[self.current_pdf_index].extract_grids()
+        self.current_grid, grid_index = self.pdfs[
+            self.current_pdf_index
+        ].get_previous_grid()
+
+        self._set_current_grid(
+            grid_index, self.pdfs[self.current_pdf_index].get_count()
+        )
 
     def show_next_grid(self, event=None):
-        if not self.pdfs or self.current_pdf is None:
+        if not self.pdfs or self.current_pdf_index is None:
             return
-        self.current_grid = self.pdfs[self.current_pdf].get_next_grid()
-        self._set_current_grid()
+        self.current_grid, grid_index = self.pdfs[
+            self.current_pdf_index
+        ].get_next_grid()
+        self._set_current_grid(
+            grid_index, self.pdfs[self.current_pdf_index].get_count()
+        )
 
     def show_previous_grid(self, event=None):
-        if not self.pdfs or self.current_pdf is None:
+        if not self.pdfs or self.current_pdf_index is None:
             return
-        self.current_grid = self.pdfs[self.current_pdf].get_previous_grid()
-        self._set_current_grid()
+        self.current_grid, grid_index = self.pdfs[
+            self.current_pdf_index
+        ].get_previous_grid()
+        self._set_current_grid(
+            grid_index, self.pdfs[self.current_pdf_index].get_count()
+        )
 
     def open_file(self, event=None):
         file_paths = ctk.filedialog.askopenfilenames(
@@ -385,10 +412,10 @@ class App:
         self.confilct_frame.destroy_frame(button_frame)
         if not self.confilct_frame.button_frames:
             self.update_displayed_score(self.current_grid.calculate_score())
-        self._button_on_leave(row,cols)
+        self._button_on_leave(row, cols)
 
     def _button_on_hover(self, row, cols, event=None):
-        self.current_grid.highlight_row(row,cols)
+        self.current_grid.highlight_row(row, cols)
         App.cv_image = self.current_grid.image_annotee
         self.image_viewer._do_resize(keep_scale=True)
 
@@ -396,7 +423,7 @@ class App:
         self.current_grid.clear_image(self.show_detected_cells.get())
         App.cv_image = self.current_grid.image_annotee
         self.image_viewer._do_resize(keep_scale=True)
-    
+
     def draw_detected_cells(self, event=None):
         self.current_grid.clear_image(self.show_detected_cells.get())
         App.cv_image = self.current_grid.image_annotee

@@ -173,14 +173,17 @@ Résultat :
 
 ---
 
-### 3.2 Détection du Cadre Principal
+### 3.2 Détection du Cadre Principal (plus grand contour)
 #### Identification du Rectangle Dominant
 - **Technique** : 
   - Détection des contours externes
   - Filtrage des formes quadrilatères
   - Sélection par surface maximale
+
+  En trouvant le plus grand contours, nous pouvons ensuites exploiter les coordonnées du rectangles qui l'englobe pour mieux affiner l'analyse
 - **Paramètres** : Approximation polygonale à 2% de précision
 
+![](temp/plus_grand_contour.png)
 ![Cadre principal détecté](temp/10roi_lignes_combinees.png)
 
 ---
@@ -201,7 +204,7 @@ Résultat :
 - **Mode** : RETR_LIST pour tous les contours
 - **Filtrage** :
   - Forme rectangulaire (4 côtés)
-  - Surface dans ±65% de la médiane
+  - Surface dans ±45% de la médiane
   - Tolérance d'approximation : 10%
 
 ```python
@@ -249,7 +252,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 #### Dilatation Horizontale
 - **But** : Reconnecter les parties disjointes des marques
 - **Paramètres** : 
-  - Noyau horizontal (7x1)
+  - Noyau horizontal (1x7)
   - 3 itérations
 
 ![Éléments reconnectés](temp/15dilatee_roi_ouverture.png)
@@ -258,18 +261,19 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 ### 4.5. Filtrage des Lignes Horizontales Résiduelles
 #### Masquage Sélectif
-- **Technique** : Soustraction avec masque horizontal
+- **Technique** : Soustraction des lignes horizontales
 - **Précision** : Conservation des formes angulaires
 
-![Masque horizontal appliqué](temp/16masque_lignes_horizontales.png)  
-![Résultat après soustraction](temp/17dilatee_roi_ouverture_sans_lignes_horizontales.png)
+| Masque Horizontal | Résultat après soustraction |
+|-------|-------|
+| ![Masque horizontal appliqué](temp/16masque_lignes_horizontales.png)| ![Résultat après soustraction](temp/17dilatee_roi_ouverture_sans_lignes_horizontales.png)|
 
 ---
 
 ### 4.6. Amélioration de la Qualité
 #### Post-traitement Morphologique
-1. **Fermeture** (5x5) : Combler les micro-interruptions
-2. **Ouverture** (3x3) : Affiner les contours
+1. **Fermeture** Element structurant (5x5) : Combler les micro-interruptions
+2. **Ouverture** Element structurant  (3x3) : Affiner les contours
 
 | Avant | Après |
 |-------|-------|
@@ -281,7 +285,6 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 #### Combinaison Logique AND avec l'image binaire inversée
 - **Objectif** : Éliminer les faux positifs
 - **Méthode** : Intersection avec l'image inversée originale
-- **Avantage** : Conservation de la cohérence lumineuse
 
 ![Filtrage final](temp/20et_logique_img-dilatee_img-inversee.png)
 
@@ -295,14 +298,3 @@ approximation = 0.1 * cv2.arcLength(contour, True)
   - Position intra-cellule
 
 ![Contours détectés](temp/21contours_checkmarks_img.png)
-
----
-
-### 4.9 Validation Spatiale
-#### Cartographie des Collisions
-- **Méthode** : Calcul de chevauchement cellule/marque
-- **Seuil** : 60% de recouvrement minimum
-- **Sortie** : 
-  - Marques valides en vert
-  - Conflits en orange
-  - Erreurs en rouge
