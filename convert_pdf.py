@@ -105,22 +105,46 @@ class PDFFile:
 
     def extract_images(self):
         """
-        Extrait les données brutes des images contenues dans le fichier PDF.
-        Retourne une liste de dictionnaires contenant les données des images.
+        Extrait l'image la plus grande par page si elle couvre une grande partie de la page.
+        Sinon, effectue un rendu de la page à 300 PPI.
         """
         if self._raw_images_dict:
-            return self._raw_images_dict  # Retourne les données si elles ont déjà été extraites
-        biggest_image_dict = {'height': 0}  # Initialise un dictionnaire pour la plus grande image
+            return self._raw_images_dict  # Si les images sont déjà extraites, on les retourne directement
         for i in range(len(self.file)):
-            # Parcourt chaque page du PDF pour extraire les images
-            images = self.file.load_page(i).get_images(True)
-            for image in images:
-                base_image_dict = self.file.extract_image(xref=image[0])
-                # Sélectionne l'image avec la plus grande hauteur
-                if base_image_dict["height"] > biggest_image_dict["height"]:
-                    biggest_image_dict = base_image_dict
-            self._raw_images_dict.append(biggest_image_dict)  # Ajoute l'image à la liste
+            page = self.file.load_page(i)
+            page_width, page_height = page.rect.width, page.rect.height
+            images = page.get_images(full=True)
+
+            selected_image = None
+            max_area = 0
+            # Parcourt toutes les images de la page
+            for img in images:
+                xref = img[0]
+                base_image_dict = self.file.extract_image(xref)
+                width = base_image_dict["width"]
+                height = base_image_dict["height"]
+                area = width * height
+
+                # Vérifie si l'image couvre au moins ~70% de la surface de la page
+                if area > max_area and area >= 0.7 * (page_width * page_height):
+                    max_area = area
+                    selected_image = base_image_dict
+
+            if selected_image:
+                # Une image suffisamment grande a été trouvée
+                self._raw_images_dict.append(selected_image)
+            else:
+                # Aucune image adéquate – on effectue un rendu de la page en 300 PPI
+                pix = page.get_pixmap(dpi=300)
+                image_bytes = pix.tobytes("png")
+                self._raw_images_dict.append({
+                    "image": image_bytes,
+                    "width": pix.width,
+                    "height": pix.height,
+                    "ext": "png"
+                })
         return self._raw_images_dict.copy()
+
 
     def save_images(self):
         """Sauvegarde les images extraites dans un répertoire local"""

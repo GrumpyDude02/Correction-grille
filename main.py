@@ -7,9 +7,9 @@ from convert_pdf import PDFFile
 from grid import Grid
 from styling import *
 
-# TODO: make warning class
-# TODO: Add Errors
-# TODO: Show the number of files
+# TODO: Highlight rows and columns of the hovered buttons
+# TODO: Show the number of images in the PDF file
+# TODO: write documentation
 
 
 class ImageViewer(ctk.CTkCanvas):
@@ -73,13 +73,14 @@ class ImageViewer(ctk.CTkCanvas):
             self.after_cancel(self.resize_job)
         self.resize_job = self.after(100, self._do_resize)
 
-    def _do_resize(self):
+    def _do_resize(self,keep_scale=False):
         if App.cv_image is None:
             return
         width, height = self.winfo_width(), self.winfo_height()
 
         # Adjust scale to fit image into canvas
-        self.scale = min(width / App.cv_image.shape[1], height / App.cv_image.shape[0])
+        if not keep_scale:
+            self.scale = min(width / App.cv_image.shape[1], height / App.cv_image.shape[0])
         self.delete("all")
         self.resize(width, height)
         self.redraw_image()
@@ -211,14 +212,14 @@ class App:
         self.score = ctk.StringVar(value="Score : N/A")
         self.current_pdf_var = ctk.StringVar(value="Fichier PDF: N/A")
         
-        self.grid_type_label = ctk.CTkLabel(self.rhs_frame, textvariable=self.grid_type)
+        self.grid_type_label = ctk.CTkLabel(self.rhs_frame, textvariable=self.grid_type, font=font1)
         self.score_label = ctk.CTkLabel(
-            self.rhs_frame, text="Score: ", textvariable=self.score
+            self.rhs_frame, text="Score: ", textvariable=self.score, font=font1
         )
         self.current_pdf_label = ctk.CTkLabel(
-            self.window, text="Fichier PDF: ", font=("Arial", 13, "bold"),textvariable=self.current_pdf_var
+            self.window, text="Fichier PDF: ", font=font1,textvariable=self.current_pdf_var
         )
-        self.show_detected_cells = ctk.CTkCheckBox(self.rhs_frame, text="WireFrame")
+        self.show_detected_cells = ctk.CTkCheckBox(self.rhs_frame, text="WireFrame",command=self.draw_detected_cells)
         self.add_file_button = ctk.CTkButton(
             self.rhs_frame, text="Ajouter", command=self.open_file
         )
@@ -273,29 +274,32 @@ class App:
         if self.current_grid is not None:
             self.current_pdf_var.set(f"Fichier PDF: {self.pdfs[self.current_pdf].path.split('/')[-1]}")
         self.confilct_frame.clear()
+        self.warning_frame.clear()
         self.update_displayed_score()
         if data is None:
             return
         App.cv_image = data["image"]
         self.grid_type.set(value=data["type"].value)
-        print(data["type"].value)
         self.image_viewer.after(
             10, lambda: self.image_viewer.event_generate("<Configure>")
         )
-
+        self.draw_detected_cells()
         problematic_rows: dict = self.current_grid.get_problematic_cells_per_row()
-        self.confilct_frame.add_button_frame(
+        self.confilct_frame.add_button_frames(
             problematic_rows, self.cell_buttons_callback
         )
-        self.confilct_frame.show_button_frames()
-
-        warnings = self.current_grid.get_warnings_errors()
+        
+        self.warning_frame.add_warnings(self.current_grid.get_warnings_errors())
 
         if not self.confilct_frame.button_frames:
             self.update_displayed_score(self.current_grid.calculate_score())
 
     def update_displayed_score(self, value: str | float = "N/A"):
-        self.score.set(value=f"Score: {value}")
+        if isinstance(value, str):
+            self.score.set(value=f"Score: {value}")
+        else:
+            self.score.set(value=f"Score: {value:.2f}")
+            
 
     def _set_current_grid(self, event=None):
         self.update(self.current_grid.run_analysis())
@@ -341,9 +345,10 @@ class App:
         file_paths = ctk.filedialog.askopenfilenames(
             title="Sélectionner un fichier", filetypes=[("Fichiers PDF", "*.pdf")]
         )
-        for file_path in file_paths:
-            self.pdfs.append(PDFFile(file_path))
-        self._show_latest_file()
+        if file_paths:
+            for file_path in file_paths:
+                self.pdfs.append(PDFFile(file_path))
+            self._show_latest_file()
 
     def save_file(self, event=None):
         if self.current_grid is None:
@@ -380,12 +385,22 @@ class App:
         self.confilct_frame.destroy_frame(button_frame)
         if not self.confilct_frame.button_frames:
             self.update_displayed_score(self.current_grid.calculate_score())
+        self._button_on_leave(row,cols)
 
     def _button_on_hover(self, row, cols, event=None):
-        pass
+        self.current_grid.highlight_row(row,cols)
+        App.cv_image = self.current_grid.image_annotee
+        self.image_viewer._do_resize(keep_scale=True)
 
     def _button_on_leave(self, row, cols, event=None):
-        pass
+        self.current_grid.clear_image(self.show_detected_cells.get())
+        App.cv_image = self.current_grid.image_annotee
+        self.image_viewer._do_resize(keep_scale=True)
+    
+    def draw_detected_cells(self, event=None):
+        self.current_grid.clear_image(self.show_detected_cells.get())
+        App.cv_image = self.current_grid.image_annotee
+        self.image_viewer._do_resize(keep_scale=True)
 
 
 app = App("Demo", WIDTH, HEIGHT, [True, True])
