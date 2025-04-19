@@ -120,7 +120,10 @@ class Grid:
                     self.type = GridType.PFE_Inter
                 case "PFA":
                     self.type = GridType.PFA
-            self.expected_row_cols = (qr_code_data.get("Lines"), qr_code_data.get("Cols"))
+            self.expected_row_cols = (
+                qr_code_data.get("Lines"),
+                qr_code_data.get("Cols"),
+            )
         elif original_img.shape[1] > original_img.shape[0]:
             self.original_matrix = imutils.rotate_bound(original_img, 90)
         else:
@@ -175,12 +178,17 @@ class Grid:
             Grid.horizontal_kernel,
             iterations=14,
         )
-        self.horizontal_lines = cv2.bitwise_and(self.horizontal_lines, tools.detecter_lignes_hough(self.horizontal_lines))
-        self.horizontal_lines = cv2.morphologyEx(self.horizontal_lines, cv2.MORPH_CLOSE, Grid.square_kernel3, iterations=1)
-    
-        self.imgs_dict["5lignes_horizontales_finale"] = self.horizontal_lines.copy()
-        #self.imgs_dict["line_mask"] = line_mask.copy()
+        self.horizontal_lines = cv2.bitwise_and(
+            self.horizontal_lines,
+            tools.detecter_lignes_hough(
+                self.horizontal_lines, longueur_min=int(self.original_matrix.shape[1]*0.1)
+            ),
+        )
+        self.horizontal_lines = cv2.morphologyEx(
+            self.horizontal_lines, cv2.MORPH_CLOSE, Grid.square_kernel3, iterations=1
+        )
 
+        self.imgs_dict["5lignes_horizontales_finale"] = self.horizontal_lines.copy()
         # ---------------------------------------------------------------
         # Traitement des LIGNES VERTICALES
         # ---------------------------------------------------------------
@@ -198,8 +206,15 @@ class Grid:
         self.vertical_lines = cv2.morphologyEx(
             self.vertical_lines, cv2.MORPH_DILATE, Grid.vertical_kernel, iterations=8
         )
-        self.vertical_lines = cv2.bitwise_and(self.vertical_lines,tools.detecter_lignes_hough(self.vertical_lines))
-        self.vertical_lines = cv2.morphologyEx(self.vertical_lines, cv2.MORPH_CLOSE, Grid.square_kernel3, iterations=1)
+        self.vertical_lines = cv2.bitwise_and(
+            self.vertical_lines,
+            tools.detecter_lignes_hough(
+                self.vertical_lines, longueur_min=int(self.original_matrix.shape[0] * 0.05)
+            ),
+        )
+        self.vertical_lines = cv2.morphologyEx(
+            self.vertical_lines, cv2.MORPH_CLOSE, Grid.square_kernel3, iterations=1
+        )
         self.imgs_dict["7lignes_verticales_finale"] = self.vertical_lines.copy()
 
         # Combinaison des résultats
@@ -208,82 +223,84 @@ class Grid:
         self.imgs_dict["8lignes_combines"] = self.combined_lines.copy()
 
     def _extraction_cellules(self):
-            """Extraction des cellules de la grille par analyse des contours"""
-            
-            # ---------------------------------------------------------------
-            # Étape 1: Découpage de la moitié droite de l'image
-            # ---------------------------------------------------------------
-            # On isole la partie droite qui contient les cellules à analyser
-            rhs_combined_lines = self.combined_lines[:, self.middle_x :]
-            self.imgs_dict["9moitie_droite_lignes_combines"] = rhs_combined_lines.copy()
+        """Extraction des cellules de la grille par analyse des contours"""
 
-            # ---------------------------------------------------------------
-            # Étape 2: Détection du cadre principal
-            # ---------------------------------------------------------------
-            # Trouver tous les contours externes dans la partie droite
-            outer_contours,_ = cv2.findContours(
-                rhs_combined_lines, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+        # ---------------------------------------------------------------
+        # Étape 1: Découpage de la moitié droite de l'image
+        # ---------------------------------------------------------------
+        # On isole la partie droite qui contient les cellules à analyser
+        rhs_combined_lines = self.combined_lines[:, self.middle_x :]
+        self.imgs_dict["9moitie_droite_lignes_combines"] = rhs_combined_lines.copy()
+
+        # ---------------------------------------------------------------
+        # Étape 2: Détection du cadre principal
+        # ---------------------------------------------------------------
+        # Trouver tous les contours externes dans la partie droite
+        outer_contours, _ = cv2.findContours(
+            rhs_combined_lines, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        # Sélection du plus grand rectangle détecté
+        self.bbox_biggest_rect = cv2.boundingRect(
+            max(outer_contours, key=lambda x: cv2.contourArea(x))
+        )
+
+        # Découpage de la région d'intérêt (ROI)
+        x, y, w, h = self.bbox_biggest_rect
+        self.cropped_combined_lines = rhs_combined_lines[y : y + h, x : x + w]
+        self.imgs_dict["10roi_lignes_combinees"] = self.cropped_combined_lines.copy()
+
+        # ---------------------------------------------------------------
+        # Étape 3: Affinement des lignes
+        # ---------------------------------------------------------------
+        # Amincissement des lignes pour mieux séparer les cellules
+        # self.combined_cropped_lines = cv2.morphologyEx(self.cropped_combined_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1)
+        self.cropped_combined_lines = cv2.ximgproc.thinning(self.cropped_combined_lines)
+        self.imgs_dict["11roi_lignes_combines_minces"] = (
+            self.cropped_combined_lines.copy()
+        )
+
+        # ---------------------------------------------------------------
+        # Étape 4: Détection des cellules individuelles (peut être optimisé en utilisant les contours déjà detectés qui sont a l'intérieur du plus grand rectangle)
+        # ---------------------------------------------------------------
+        # Recherche des contours internes (les cellules)
+        inner_contours, _ = cv2.findContours(
+            self.cropped_combined_lines, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        bboxes = []
+        areas = [cv2.contourArea(c) for c in inner_contours]
+        median = np.median(areas)  # Surface médiane de référence
+
+        # Filtrage des cellules valides
+        for contour in inner_contours:
+            approx = cv2.approxPolyDP(
+                contour, 0.02 * cv2.arcLength(contour, True), True
             )
-            
+            area = cv2.contourArea(contour)
 
-            # Sélection du plus grand rectangle détecté
-            self.bbox_biggest_rect = cv2.boundingRect(
-                max(outer_contours, key=lambda x: cv2.contourArea(x))
-            )
+            # Critères de validation:
+            # 1. Forme rectangulaire (4 côtés)
+            # 2. Surface dans la plage acceptable (médiane ± tolérance)
+            if 3 <= len(approx) <= 5 and median * (
+                1 - Grid.tolerance
+            ) < area < median * (1 + Grid.tolerance):
+                bboxes.append(cv2.boundingRect(contour))
 
-            # Découpage de la région d'intérêt (ROI)
-            x, y, w, h = self.bbox_biggest_rect
-            self.cropped_combined_lines = rhs_combined_lines[y : y + h, x : x + w]
-            self.imgs_dict["10roi_lignes_combinees"] = self.cropped_combined_lines.copy()
+        # ---------------------------------------------------------------
+        # Étape 5: Organisation des cellules
+        # ---------------------------------------------------------------
+        # Tri des cellules par position (ligne/colonne)
+        self.sorted_cells = tools.sort_cells(bboxes)
 
-            # ---------------------------------------------------------------
-            # Étape 3: Affinement des lignes
-            # ---------------------------------------------------------------
-            # Amincissement des lignes pour mieux séparer les cellules
-            #self.combined_cropped_lines = cv2.morphologyEx(self.cropped_combined_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1)
-            self.cropped_combined_lines = cv2.ximgproc.thinning(self.cropped_combined_lines)
-            self.imgs_dict["11roi_lignes_combines_minces"] = self.cropped_combined_lines.copy()
+        # Initialisation de la matrice d'état:
+        # - Premier indice: état (0=vide, 1=cochée)
+        # - Second indice: couleur (2=par défaut)
+        self.cells_state = [[[0, 1] for _ in ligne] for ligne in self.sorted_cells]
 
-            # ---------------------------------------------------------------
-            # Étape 4: Détection des cellules individuelles (peut être optimisé en utilisant les contours déjà detectés qui sont a l'intérieur du plus grand rectangle)
-            # ---------------------------------------------------------------
-            # Recherche des contours internes (les cellules)
-            inner_contours, _ = cv2.findContours(
-                self.cropped_combined_lines, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
-            )
-
-            bboxes = []
-            areas = [cv2.contourArea(c) for c in inner_contours]
-            median = np.median(areas)  # Surface médiane de référence
-
-            # Filtrage des cellules valides
-            for contour in inner_contours:
-                approx = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
-                area = cv2.contourArea(contour)
-                
-                # Critères de validation:
-                # 1. Forme rectangulaire (4 côtés)
-                # 2. Surface dans la plage acceptable (médiane ± tolérance)
-                if 3 <= len(approx) <=5  and median*(1-Grid.tolerance) < area < median*(1+Grid.tolerance):
-                    bboxes.append(cv2.boundingRect(contour))
-
-            # ---------------------------------------------------------------
-            # Étape 5: Organisation des cellules
-            # ---------------------------------------------------------------
-            # Tri des cellules par position (ligne/colonne)
-            self.sorted_cells = tools.sort_cells(bboxes)
-            
-            # Initialisation de la matrice d'état:
-            # - Premier indice: état (0=vide, 1=cochée)
-            # - Second indice: couleur (2=par défaut)
-            self.cells_state = [
-                [[0, 1] for _ in ligne] 
-                for ligne in self.sorted_cells
-            ]
-            
     def _extraction_croix(self):
         """Détection et extraction des croix de validation (croix/coches) dans les cellules"""
-        
+
         # Récupération des coordonnées de référence
         x_cell, y_cell, w_cell, h_cell = self.sorted_cells[0][0]  # Première cellule
         x_roi, y_roi, w_roi, h_roi = self.bbox_biggest_rect  # Zone d'intérêt principale
@@ -300,10 +317,12 @@ class Grid:
         # ---------------------------------------------------------------
         # 1. Isolation de la moitié droite
         right_no_lines = self.no_lines[:, self.middle_x :]
-        
+
         # 2. Découpage selon le ROI principal
         # 3. Ajustement relatif à la première cellule
-        self.cropped_no_lines = right_no_lines[y_roi:y_roi+h_roi, x_roi:x_roi+w_roi][y_cell:, x_cell:]
+        self.cropped_no_lines = right_no_lines[
+            y_roi : y_roi + h_roi, x_roi : x_roi + w_roi
+        ][y_cell:, x_cell:]
         self.imgs_dict["13sans_lignes_verticales_roi"] = self.cropped_no_lines.copy()
 
         # ---------------------------------------------------------------
@@ -313,7 +332,9 @@ class Grid:
         self.cropped_no_lines = cv2.morphologyEx(
             self.cropped_no_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
         )
-        self.imgs_dict["14sans_lignes_verticales_roi_ouverture"] = self.cropped_no_lines.copy()
+        self.imgs_dict["14sans_lignes_verticales_roi_ouverture"] = (
+            self.cropped_no_lines.copy()
+        )
 
         # ---------------------------------------------------------------
         # Étape 4: Reconstitution des croix fragmentées
@@ -331,11 +352,13 @@ class Grid:
         # Étape 5: Suppression des artefacts horizontaux résiduels
         # ---------------------------------------------------------------
         # Masquage des lignes horizontales restantes
-        mask_horizontal = self.horizontal_lines[:, self.middle_x:][y_roi:y_roi+h_roi, x_roi:x_roi+w_roi][y_cell:, x_cell:]
+        mask_horizontal = self.horizontal_lines[:, self.middle_x :][
+            y_roi : y_roi + h_roi, x_roi : x_roi + w_roi
+        ][y_cell:, x_cell:]
         self.imgs_dict["16masque_lignes_horizontales"] = mask_horizontal.copy()
-        
+
         dilated_img = cv2.absdiff(dilated_img, mask_horizontal)
-        
+
         self.imgs_dict["17dilatee_sans_lignes_horizontales"] = dilated_img.copy()
 
         # ---------------------------------------------------------------
@@ -346,12 +369,11 @@ class Grid:
         dilated_img = cv2.morphologyEx(
             dilated_img, cv2.MORPH_CLOSE, Grid.square_kernel5, iterations=1
         )
-        
-        
+
         dilated_img = cv2.morphologyEx(
             dilated_img, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
         )
-        
+
         self.imgs_dict["18apres_fermeture"] = dilated_img.copy()
         self.imgs_dict["19apres_ouverture"] = dilated_img.copy()
 
@@ -361,7 +383,9 @@ class Grid:
         # Intersection avec l'image originale inversée
         final_img = cv2.bitwise_and(
             dilated_img,
-            self.inverted_img[:, self.middle_x:][y_roi:y_roi+h_roi, x_roi:x_roi+w_roi][y_cell:, x_cell:],
+            self.inverted_img[:, self.middle_x :][
+                y_roi : y_roi + h_roi, x_roi : x_roi + w_roi
+            ][y_cell:, x_cell:],
         )
         self.imgs_dict["20resultat_final"] = final_img.copy()
         self.cropped_no_lines = final_img
@@ -375,8 +399,8 @@ class Grid:
 
         # Filtrage par taille minimale
         self.checkmark_bboxes = [
-            cv2.boundingRect(c) 
-            for c in contours 
+            cv2.boundingRect(c)
+            for c in contours
             if cv2.contourArea(c) > Grid.seuil_filtrage_surface_croix
         ]
 
@@ -385,14 +409,14 @@ class Grid:
         # ---------------------------------------------------------------
         # Ajustement des coordonnées des cellules
         cellules_decalees = [
-            tools.add_offset_bbox(ligne, (-x_cell, -y_cell)) 
+            tools.add_offset_bbox(ligne, (-x_cell, -y_cell))
             for ligne in self.sorted_cells
         ]
-        
+
         # Calcul des intersections croix/cellules
         self.collisions_per_checkmark_per_row = self._get_occupied_cells_per_row(
             cellules_decalees
-        )            
+        )
 
     def _draw_checkmarks_bboxes(self):
         """
@@ -402,28 +426,32 @@ class Grid:
         """
         # Coordonnées de référence pour l'alignement
         x_cell_ref, y_cell_ref, _, _ = self.sorted_cells[0][0]  # Première cellule
-        x_roi, y_roi, w_roi, h_roi = self.bbox_biggest_rect    # Zone d'intérêt principale
+        x_roi, y_roi, w_roi, h_roi = self.bbox_biggest_rect  # Zone d'intérêt principale
 
-        for (x_croix, y_croix, w_croix, h_croix) in self.checkmark_bboxes:
+        for x_croix, y_croix, w_croix, h_croix in self.checkmark_bboxes:
             # Dessin sur l'image intermédiaire (en blanc)
             cv2.rectangle(
                 self.cropped_no_lines,
                 (x_croix, y_croix),
                 (x_croix + w_croix, y_croix + h_croix),
                 255,  # Couleur blanche
-                2     # Épaisseur du trait
+                2,  # Épaisseur du trait
             )
 
             # Dessin sur l'image finale (en rouge)
             cv2.rectangle(
                 self.image_annotee,
                 # Calcul précis de la position absolue:
-                (x_croix + x_roi + self.middle_x + x_cell_ref, 
-                 y_cell_ref + y_roi + y_croix),
-                (x_croix + x_roi + self.middle_x + x_cell_ref + w_croix,
-                 y_cell_ref + y_roi + y_croix + h_croix),
+                (
+                    x_croix + x_roi + self.middle_x + x_cell_ref,
+                    y_cell_ref + y_roi + y_croix,
+                ),
+                (
+                    x_croix + x_roi + self.middle_x + x_cell_ref + w_croix,
+                    y_cell_ref + y_roi + y_croix + h_croix,
+                ),
                 (0, 0, 255),  # Rouge en BGR
-                2
+                2,
             )
 
     def _draw_cells_bboxs(self):
@@ -433,23 +461,24 @@ class Grid:
         - Marge intérieure de 10px pour mieux visualiser les cases
         """
         _, y_cell_ref, _, _ = self.sorted_cells[0][0]  # Référence verticale
-        x_roi, y_roi, _, _ = self.bbox_biggest_rect    # Offset du ROI
+        x_roi, y_roi, _, _ = self.bbox_biggest_rect  # Offset du ROI
 
         for i, row in enumerate(self.sorted_cells):
             for j, (x_cell, y_cell, w_cell, h_cell) in enumerate(row):
                 # Ne pas dessiner les cellules masquées
                 if self.cells_state[i][j][1] == -1:
                     continue
-                    
+
                 # Dessin avec marge intérieure de 10px
                 cv2.rectangle(
                     self.image_annotee,
-                    (x_cell + self.middle_x + 10, 
-                     y_roi + y_cell + 10),
-                    (x_cell + self.middle_x + w_cell - 10,
-                     y_roi + y_cell + h_cell - 10),
+                    (x_cell + self.middle_x + 10, y_roi + y_cell + 10),
+                    (
+                        x_cell + self.middle_x + w_cell - 10,
+                        y_roi + y_cell + h_cell - 10,
+                    ),
                     cst.COLORS[self.cells_state[i][j][1]],  # Couleur selon l'état
-                    2  # Épaisseur du trait
+                    2,  # Épaisseur du trait
                 )
 
     def _save_imgs(self, folder):
@@ -461,16 +490,15 @@ class Grid:
         except (ValueError, FileExistsError, FileNotFoundError):
             print("Sauvegarde Impossible")
 
-
     def _get_occupied_cells_per_row(self, offset_cells):
         """
         Détermine les cellules contenant des croix en calculant les zones de chevauchement.
-        
+
         Args:
             offset_cells: Liste des cellules avec coordonnées ajustées
-            
+
         Returns:
-            Dictionnaire {num_ligne: [liste_colonnes_occupées]} 
+            Dictionnaire {num_ligne: [liste_colonnes_occupées]}
             avec distinction entre croix certaines (ratio >= 60%) et ambiguës
         """
         # Dictionnaire temporaire des collisions par croix
@@ -481,23 +509,25 @@ class Grid:
         # ---------------------------------------------------------------
         # Étape 1: Calcul des intersections croix-cellule
         # ---------------------------------------------------------------
-        for index, (x_croix, y_croix, w_croix, h_croix) in enumerate(self.checkmark_bboxes):
+        for index, (x_croix, y_croix, w_croix, h_croix) in enumerate(
+            self.checkmark_bboxes
+        ):
             surface_croix = w_croix * h_croix
-            
+
             for row_idx, ligne in enumerate(offset_cells):
                 for col_idx, (x_cell, y_cell, w_cell, h_cell) in enumerate(ligne):
-                    
+
                     # Calcul de la zone d'intersection
                     x_min = max(x_croix, x_cell)
                     x_max = min(x_croix + w_croix, x_cell + w_cell)
                     y_min = max(y_croix, y_cell)
                     y_max = min(y_croix + h_croix, y_cell + h_cell)
-                    
+
                     # Si intersection valide
                     if x_max > x_min and y_max > y_min:
                         surface_intersec = (x_max - x_min) * (y_max - y_min)
                         ratio = surface_intersec / surface_croix
-                        
+
                         # Enregistrement de la collision
                         if index not in croix_collisions:
                             croix_collisions[index] = [(row_idx, col_idx, ratio)]
@@ -510,29 +540,29 @@ class Grid:
         for index, _ in enumerate(self.checkmark_bboxes):
             if index not in croix_collisions:
                 continue
-                
+
             collisions = croix_collisions[index]
             meilleure_collision = max(collisions, key=lambda x: x[2])
-            
+
             # Seuil de certitude (60% de recouvrement)
             if meilleure_collision[2] >= Grid.seuil_croix:
                 ligne, colonne, _ = collisions[0]  # Prend la première (meilleure)
                 self.cells_state[ligne][colonne][0] = 1  # Croix certaine
-                
+
                 # Format: {ligne: [[col1], [col2], ...]}
                 if ligne not in collisions_par_ligne:
                     collisions_par_ligne[ligne] = [[colonne]]
                 else:
                     collisions_par_ligne[ligne].append([colonne])
-            
+
             # Cas des croix ambiguës (ex: à cheval sur 2 colonnes)
             else:
                 colonnes_concernees = []
                 for ligne, colonne, ratio in collisions:
                     self.cells_state[ligne][colonne][0] = 0.5  # Croix incertaine
-                    self.cells_state[ligne][colonne][1] = 2    # Code couleur orange
+                    self.cells_state[ligne][colonne][1] = 2  # Code couleur orange
                     colonnes_concernees.append(colonne)
-                
+
                 # Format: {ligne: [[col1, col2], ...]}
                 if ligne not in collisions_par_ligne:
                     collisions_par_ligne[ligne] = [colonnes_concernees]
@@ -540,7 +570,7 @@ class Grid:
                     collisions_par_ligne[ligne].append(colonnes_concernees)
 
         return collisions_par_ligne
-    
+
     # -------------------------------------------------------------------------------------------------------------
     #                                   Fonctions permettant l'interaction avec l'application
     # -------------------------------------------------------------------------------------------------------------
@@ -554,35 +584,37 @@ class Grid:
     def run_analysis(self):
         """Exécute l'analyse complète de la grille si pas déjà fait"""
         if not self.cells_state:
-            self._pretraitement()         # Étape 1: Prétraitement
-            self._extraction_lignes()     # Étape 2: Détection des lignes
-            self._extraction_cellules()   # Étape 3: Extraction cellules
-            self._extraction_croix()      # Étape 4: Détection croix
-            self._save_imgs("assets")       # Sauvegarde images intermédiaires
+            self._pretraitement()  # Étape 1: Prétraitement
+            self._extraction_lignes()  # Étape 2: Détection des lignes
+            self._extraction_cellules()  # Étape 3: Extraction cellules
+            self._extraction_croix()  # Étape 4: Détection croix
+            self._save_imgs("assets")  # Sauvegarde images intermédiaires
         return {
             "image": self.image_annotee,  # Image avec annotations
-            "type": self.type             # Type de grille détecté
+            "type": self.type,  # Type de grille détecté
         }
 
     def calculate_score(self):
         """Calcule le score pondéré selon les cases cochées"""
         score = 0
         ponderation = 0
-        
+
         for i, row in enumerate(self.sorted_cells):
             # Pondération double pour les lignes > 19
-            multiplier = 2 if (i > 19 and self.type == GridType.PFE_Finale)  else 1  
-            
+            multiplier = 2 if (i > 19 and self.type == GridType.PFE_Finale) else 1
+
             # Vérification cases cochées
             has_checked = any(cell[0] > 0 for cell in self.cells_state[i])
-            
+
             if has_checked:
                 ponderation += multiplier
                 # Calcul score avec pondération colonne (j*0.2)
-                score += sum(cell[0] * j * 0.2 * multiplier 
-                           for j, cell in enumerate(self.cells_state[i]))
-                           
-        # Normalisation sur 20            
+                score += sum(
+                    cell[0] * j * 0.2 * multiplier
+                    for j, cell in enumerate(self.cells_state[i])
+                )
+
+        # Normalisation sur 20
         return (score / ponderation) * 20 if ponderation else 0
 
     def update_cell_state_color(self):
@@ -597,13 +629,13 @@ class Grid:
         # Réinitialisation de la ligne
         for cell in self.cells_state[row]:
             cell[0], cell[1] = 0, 2  # Déselection
-            
+
         # Cas normal: une seule colonne sélectionnée
         if len(cols) == 1:
             self.cells_state[row][cols[0]] = [1, 1]  # [état, couleur]
-        
+
         # Cas ambigu: deux colonnes possibles
-        else:  
+        else:
             for col in cols[:2]:  # Prend au plus 2 colonnes
                 self.cells_state[row][col] = [0.5, 1]  # État incertain
 
@@ -611,29 +643,33 @@ class Grid:
         """Détecte les anomalies structurelles"""
         warnings = []
         total_cells = sum(len(row) for row in self.sorted_cells)
-        
+
         # Vérification type de grille
         if self.type is GridType.Unknown:
-            warnings.append("Type de grille inconnu. le calcule effectué ne sera pas fiable.")
-            
+            warnings.append(
+                "Type de grille inconnu. le calcule effectué ne sera pas fiable."
+            )
+
         # Vérification nombre de cellules
         expected_total = self.expected_row_cols[0] * self.expected_row_cols[1]
-        if (self.expected_row_cols[1] != len(self.sorted_cells[0]) or
-            self.expected_row_cols[0] != len(self.sorted_cells) or
-            expected_total != total_cells):
-            
+        if (
+            self.expected_row_cols[1] != len(self.sorted_cells[0])
+            or self.expected_row_cols[0] != len(self.sorted_cells)
+            or expected_total != total_cells
+        ):
+
             warnings.append(
                 f"Incohérence détectée:\n"
                 f"- Cellules trouvées: {total_cells}\n"
                 f"- Cellules attendues: {expected_total}"
             )
-            
+
         return warnings
 
     def get_problematic_cells_per_row(self):
         """Identifie les lignes avec détections ambiguës"""
         return {
-            row: cases 
+            row: cases
             for row, cases in self.collisions_per_checkmark_per_row.items()
             if len(cases) > 1  # Plus d'une croix détectée par ligne
         }
@@ -642,20 +678,20 @@ class Grid:
         """Surligne une ligne et ses cellules sélectionnées"""
         if not self.sorted_cells:
             return
-            
+
         # Surlignage de toute la ligne
         x1, y1, _, _ = self.sorted_cells[row][0]
         x2, y2, w2, h2 = self.sorted_cells[row][-1]
         x_off, y_off, _, _ = self.bbox_biggest_rect
-        
+
         cv2.rectangle(
             self.image_annotee,
             (x1 + x_off + self.middle_x, y1 + y_off),
             (x2 + w2 + x_off + self.middle_x, y2 + h2 + y_off),
             color,
-            thickness
+            thickness,
         )
-        
+
         # Surlignage des cellules spécifiques (en vert)
         for col in cols[:2]:  # Maximum 2 colonnes
             x, y, w, h = self.sorted_cells[row][col]
@@ -664,7 +700,7 @@ class Grid:
                 (x + x_off + self.middle_x, y + y_off),
                 (x + w + x_off + self.middle_x, y + h + y_off),
                 (0, 255, 0),
-                thickness
+                thickness,
             )
 
     def clear_image(self, draw_bboxes=False):
