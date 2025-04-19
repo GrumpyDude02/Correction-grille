@@ -180,20 +180,20 @@ class App:
 
         self.window.columnconfigure((0, 1), weight=2, uniform="b")
         self.window.columnconfigure((2, 3, 4), weight=1, uniform="b")
-        self.window.rowconfigure(0, weight=1, uniform="b")
-        self.window.rowconfigure(5, weight=1, uniform="b")
+        self.window.rowconfigure(0, weight=2, uniform="b")
+        self.window.rowconfigure(5, weight=2, uniform="b")
         self.window.rowconfigure(1, weight=0, uniform="b")
-        self.window.rowconfigure((2, 3, 4), weight=2, uniform="b")
+        self.window.rowconfigure((2, 3, 4), weight=3, uniform="b")
 
         logo_eilco = Image.open("assets/EILCO.png")
         aspect_ratio_eilco = logo_eilco.width / logo_eilco.height
-        eilco_dimensions = (int(logo_height * aspect_ratio_eilco), logo_height)
+        eilco_dimensions = (int(logo_eilco_height * aspect_ratio_eilco), logo_eilco_height)
         self.eilco_logo = ctk.CTkImage(light_image=logo_eilco, size=eilco_dimensions)
         logo_eilco_label = ctk.CTkLabel(self.window, image=self.eilco_logo, text="")
 
         logo_ulco = Image.open("assets/ULCO.png")
         aspect_ratio_ulco = logo_ulco.width / logo_ulco.height
-        ulco_dimensions = (int(logo_height * aspect_ratio_ulco), logo_height)
+        ulco_dimensions = (int(logo_ulco_height * aspect_ratio_ulco), logo_ulco_height)
         self.ulco_logo = ctk.CTkImage(light_image=logo_ulco, size=ulco_dimensions)
         logo_ulco_label = ctk.CTkLabel(self.window, image=self.ulco_logo, text="")
 
@@ -234,8 +234,8 @@ class App:
         self.confilct_frame = ConflictFrame(self.rhs_frame, row=1, row_span=2)
         self.warning_frame = WarningFrame(self.rhs_frame, row=3, row_span=2)
 
-        logo_ulco_label.grid(row=0, column=1, padx=10, pady=4, sticky="ne")
-        logo_eilco_label.grid(row=0, column=0, padx=10, pady=4, sticky="nw")
+        logo_ulco_label.grid(row=0, column=1, padx=30, pady=6, sticky="ne")
+        logo_eilco_label.grid(row=0, column=0, padx=30, pady=6, sticky="nw")
         self.grid_type_label.grid(
             row=0, column=0, columnspan=2, padx=10, pady=5, sticky="nsew"
         )

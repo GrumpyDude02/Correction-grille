@@ -77,7 +77,7 @@ class Grid:
     vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, k_size))
     square_kernel3 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     square_kernel5 = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    tolerance = 0.65
+    tolerance = 0.45
     seuil_croix = 0.7
     seuil_filtrage_surface_croix = 175
 
@@ -113,14 +113,14 @@ class Grid:
         if qr_code_data:
             rotation = tools.calculate_angle(points[0][0], points[0][1])
             self.original_matrix = imutils.rotate_bound(original_img, -rotation)
-            match qr_code_data["Type"]:
+            match qr_code_data.get("Type"):
                 case "PFE-F":
                     self.type = GridType.PFE_Finale
                 case "PFE-Inter":
                     self.type = GridType.PFE_Inter
                 case "PFA":
                     self.type = GridType.PFA
-            self.expected_row_cols = (qr_code_data["Lines"], qr_code_data["Cols"])
+            self.expected_row_cols = (qr_code_data.get("Lines"), qr_code_data.get("Cols"))
         elif original_img.shape[1] > original_img.shape[0]:
             self.original_matrix = imutils.rotate_bound(original_img, 90)
         else:
@@ -215,21 +215,14 @@ class Grid:
             # Étape 2: Détection du cadre principal
             # ---------------------------------------------------------------
             # Trouver tous les contours externes dans la partie droite
-            outer_contours, _ = cv2.findContours(
-                rhs_combined_lines, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+            outer_contours,_ = cv2.findContours(
+                rhs_combined_lines, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
             )
             
-            # Filtrage pour ne garder que les contours rectangulaires
-            rects = []
-            for contour in outer_contours:
-                # Approximation polygonale pour simplifier le contour
-                approx = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
-                if len(approx) == 4:  # Un rectangle a 4 côtés
-                    rects.append(contour)
 
             # Sélection du plus grand rectangle détecté
             self.bbox_biggest_rect = cv2.boundingRect(
-                max(rects, key=lambda x: cv2.contourArea(x))
+                max(outer_contours, key=lambda x: cv2.contourArea(x))
             )
 
             # Découpage de la région d'intérêt (ROI)
@@ -245,7 +238,7 @@ class Grid:
             self.imgs_dict["11roi_lignes_combines_minces"] = self.cropped_combined_lines.copy()
 
             # ---------------------------------------------------------------
-            # Étape 4: Détection des cellules individuelles
+            # Étape 4: Détection des cellules individuelles (peut être optimisé en utilisant les contours déjà detectés qui sont a l'intérieur du plus grand rectangle)
             # ---------------------------------------------------------------
             # Recherche des contours internes (les cellules)
             inner_contours, _ = cv2.findContours(

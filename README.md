@@ -204,9 +204,9 @@ Résultat :
 - **Mode** : RETR_LIST pour tous les contours
 - **Filtrage** :
   - Forme rectangulaire (4 côtés)
-  - Surface dans ±65% de la médiane
+  - Surface dans ±45% de la médiane
   - Tolérance d'approximation : 10%
-#### Justification de la tolérance (±65% de la médiane)
+#### Justification de la tolérance (±45% de la médiane)
 
 Une tolérance large permet d’accepter les cellules dont la taille varie à cause :
 - des déformations lors de la prise de vue (inclinaison, perspective),
