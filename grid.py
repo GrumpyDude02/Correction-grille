@@ -175,7 +175,11 @@ class Grid:
             Grid.horizontal_kernel,
             iterations=14,
         )
+        self.horizontal_lines = cv2.bitwise_and(self.horizontal_lines, tools.detecter_lignes_hough(self.horizontal_lines))
+        self.horizontal_lines = cv2.morphologyEx(self.horizontal_lines, cv2.MORPH_CLOSE, Grid.square_kernel3, iterations=1)
+    
         self.imgs_dict["5lignes_horizontales_finale"] = self.horizontal_lines.copy()
+        #self.imgs_dict["line_mask"] = line_mask.copy()
 
         # ---------------------------------------------------------------
         # Traitement des LIGNES VERTICALES
@@ -194,6 +198,8 @@ class Grid:
         self.vertical_lines = cv2.morphologyEx(
             self.vertical_lines, cv2.MORPH_DILATE, Grid.vertical_kernel, iterations=8
         )
+        self.vertical_lines = cv2.bitwise_and(self.vertical_lines,tools.detecter_lignes_hough(self.vertical_lines))
+        self.vertical_lines = cv2.morphologyEx(self.vertical_lines, cv2.MORPH_CLOSE, Grid.square_kernel3, iterations=1)
         self.imgs_dict["7lignes_verticales_finale"] = self.vertical_lines.copy()
 
         # Combinaison des résultats
@@ -234,6 +240,7 @@ class Grid:
             # Étape 3: Affinement des lignes
             # ---------------------------------------------------------------
             # Amincissement des lignes pour mieux séparer les cellules
+            #self.combined_cropped_lines = cv2.morphologyEx(self.cropped_combined_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1)
             self.cropped_combined_lines = cv2.ximgproc.thinning(self.cropped_combined_lines)
             self.imgs_dict["11roi_lignes_combines_minces"] = self.cropped_combined_lines.copy()
 
@@ -251,13 +258,13 @@ class Grid:
 
             # Filtrage des cellules valides
             for contour in inner_contours:
-                approx = cv2.approxPolyDP(contour, 0.1 * cv2.arcLength(contour, True), True)
+                approx = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
                 area = cv2.contourArea(contour)
                 
                 # Critères de validation:
                 # 1. Forme rectangulaire (4 côtés)
                 # 2. Surface dans la plage acceptable (médiane ± tolérance)
-                if len(approx) == 4 and median*(1-Grid.tolerance) < area < median*(1+Grid.tolerance):
+                if 3 <= len(approx) <=5  and median*(1-Grid.tolerance) < area < median*(1+Grid.tolerance):
                     bboxes.append(cv2.boundingRect(contour))
 
             # ---------------------------------------------------------------
@@ -270,7 +277,7 @@ class Grid:
             # - Premier indice: état (0=vide, 1=cochée)
             # - Second indice: couleur (2=par défaut)
             self.cells_state = [
-                [[0, 2] for _ in ligne] 
+                [[0, 1] for _ in ligne] 
                 for ligne in self.sorted_cells
             ]
             
@@ -328,6 +335,7 @@ class Grid:
         self.imgs_dict["16masque_lignes_horizontales"] = mask_horizontal.copy()
         
         dilated_img = cv2.absdiff(dilated_img, mask_horizontal)
+        
         self.imgs_dict["17dilatee_sans_lignes_horizontales"] = dilated_img.copy()
 
         # ---------------------------------------------------------------
@@ -338,11 +346,13 @@ class Grid:
         dilated_img = cv2.morphologyEx(
             dilated_img, cv2.MORPH_CLOSE, Grid.square_kernel5, iterations=1
         )
-        self.imgs_dict["18apres_fermeture"] = dilated_img.copy()
+        
         
         dilated_img = cv2.morphologyEx(
             dilated_img, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
         )
+        
+        self.imgs_dict["18apres_fermeture"] = dilated_img.copy()
         self.imgs_dict["19apres_ouverture"] = dilated_img.copy()
 
         # ---------------------------------------------------------------
@@ -383,7 +393,6 @@ class Grid:
         self.collisions_per_checkmark_per_row = self._get_occupied_cells_per_row(
             cellules_decalees
         )            
-
 
     def _draw_checkmarks_bboxes(self):
         """
@@ -521,7 +530,7 @@ class Grid:
                 colonnes_concernees = []
                 for ligne, colonne, ratio in collisions:
                     self.cells_state[ligne][colonne][0] = 0.5  # Croix incertaine
-                    self.cells_state[ligne][colonne][1] = 1    # Code couleur orange
+                    self.cells_state[ligne][colonne][1] = 2    # Code couleur orange
                     colonnes_concernees.append(colonne)
                 
                 # Format: {ligne: [[col1, col2], ...]}

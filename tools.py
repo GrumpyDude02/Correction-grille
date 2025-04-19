@@ -3,6 +3,44 @@ from openpyxl import Workbook
 from statistics import mode
 import cv2
 
+def detecter_lignes_hough(image:np.array,
+                          rho=1, theta=np.pi/180, seuil=100,
+                          longueur_min=175, ecart_max=20, epaisseur=2):
+    """
+    Détecte et filtre les lignes d'une grille (horizontales ou verticales) avec HoughLinesP.
+    
+    Args:
+        masque_lignes (np.array): Masque binaire où les lignes seront dessinées
+        orientation (str): 'horizontal' ou 'vertical'
+        rho (float): Résolution de distance pour l'accumulateur
+        theta (float): Résolution angulaire (radians)
+        seuil (int): Seuil de l'accumulateur
+        longueur_min (int): Longueur minimale des lignes (pixels)
+        ecart_max (int): Écart maximal entre segments de ligne
+        tolerance_angle (int): Déviation angulaire autorisée (degrés)
+        epaisseur (int): Épaisseur des lignes dessinées
+        
+    Returns:
+        np.array: Masque avec les lignes détectées
+    """
+    
+    # Détection des lignes avec Hough
+    masque_lignes = np.zeros_like(image, dtype=image.dtype)
+    lignes = cv2.HoughLinesP(
+        image,
+        rho=rho,
+        theta=theta,
+        threshold=seuil,
+        minLineLength=longueur_min,
+        maxLineGap=ecart_max
+    )
+    
+    if lignes is not None:
+        for ligne in lignes:
+            x1, y1, x2, y2 = ligne[0]
+            cv2.line(masque_lignes, (x1, y1), (x2, y2), 255, epaisseur)
+    
+    return masque_lignes
 
 def calculate_angle(p1, p2):
     delta_y = p2[1] - p1[1]

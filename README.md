@@ -177,7 +177,6 @@ Résultat :
 #### Identification du Rectangle Dominant
 - **Technique** : 
   - Détection des contours externes
-  - Filtrage des formes quadrilatères
   - Sélection par surface maximale
 
   En trouvant le plus grand contours, nous pouvons ensuites exploiter les coordonnées du rectangles qui l'englobe pour mieux affiner l'analyse
@@ -224,11 +223,11 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 ---
 
-# 4. Détection des Marques de Vérification
+# 4. Détection des Croix de Vérification
 
 ### 4.1. Suppression des Lignes Résiduelles
 #### Élimination des Lignes Verticales
-- **Objectif** : Isoler les marques des cellules
+- **Objectif** : Isoler les croix des cellules
 - **Méthode** : Soustraction des lignes verticales détectées
 - **Résultat** : Conservation uniquement des éléments non-structuraux
 
@@ -259,7 +258,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 ### 4.4. Reconnexion des Éléments
 #### Dilatation Horizontale
-- **But** : Reconnecter les parties disjointes des marques
+- **But** : Reconnecter les parties disjointes des croix
 - **Paramètres** : 
   - Noyau horizontal (1x7)
   - 3 itérations
@@ -299,7 +298,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 ---
 
-### 4.8. Détection des Marques
+### 4.8. Détection des croix
 #### Extraction des Contours Valides
 - **Critères** : 
   - Surface > 175 pixels²
