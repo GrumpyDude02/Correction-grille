@@ -3,18 +3,18 @@
 Ce répertoire contient le code source du projet technique dédié à la **correction automatique des grilles de stage**.
 
 <p align="center">
-<img src="assets/logo_app.png" alt="Logo" width="350" /></p>
+<img src="assets/logo_app.png" alt="Logo" width="450" /></p>
 
 ---
 
 ### Interface utilisateur
-![UI](assets/ui.png)
+<img src="assets/ui.png" width="450" />
 
 ### Exemple d’image
 
 Voici une image utilisée comme exemple pour illustrer les différentes étapes du traitement :
 
-![image_originale](assets/0original.png)
+<img src="assets/0original.png" width="450" />
 
 ---
 
@@ -33,12 +33,7 @@ Utilisation de cette image pour démontrer le fonctionnement du système étape 
 ### Remarque
 
 > Le code QR de cette image contient volontairement une **erreur** : il indique **28 lignes** alors qu’il y en a en réalité **26**.  
-> Cette incohérence a été utile pour :
-> - tester la robustesse du traitement automatique,
-> - identifier les cas d’erreur,
-> - améliorer l’interface utilisateur.
-
-
+> Cette incohérence a été utile pour tester le traitement automatique et l'interface utilisateur,
 
 
 ## 1. Prétraitement de l'image
@@ -61,7 +56,8 @@ Cela permet de corriger automatiquement l'inclinaison de l'image et d'adapter le
 
 La première étape visuelle consiste à convertir l'image couleur en **niveau de gris**, ce qui simplifie les traitements suivants :
 
-![niveau_de_gris](assets/1niveau_gris.png)
+
+<img src="assets/1niveau_gris.png" width="450" />
 
 ---
 
@@ -76,7 +72,7 @@ On utilise la méthode `ADAPTIVE_THRESH_GAUSSIAN_C` de OpenCV avec les paramètr
 
 Cela produit une image en noir et blanc plus robuste, même en cas d’éclairage inégal :
 
-![binaire](assets/2binaire.png)
+<img src="assets/2binaire.png" width="450" />
 
 ---
 
@@ -85,9 +81,7 @@ Cela produit une image en noir et blanc plus robuste, même en cas d’éclairag
 L'image est ensuite **inversée** (noir ⇄ blanc) pour faciliter les détections de lignes et coches.  
 On applique aussi un **filtrage** pour réduire les petits bruits indésirables.
 
-![binaire_inversée](assets/3inverse.png)
-
-
+<img src="assets/3inverse.png" width="450" />
 
 ---
 
@@ -113,7 +107,7 @@ Cela permet d'effacer les petites perturbations et de renforcer la structure hor
 
 Résultat :
 
-![image_erodée_lignes_horizontales](assets/4lignes_horizontales_erosion.png)
+<img src="assets/4lignes_horizontales_erosion.png" width="450" />
 
 ---
 
@@ -127,7 +121,7 @@ Cette étape reconstruit les lignes nettes sur l’image en supprimant les rési
 
 Résultat :
 
-![image_dilatée_lignes_horizontales](assets/5lignes_horizontales_finale.png)
+<img src="assets/5lignes_horizontales_finale.png" width="450" />
 
 ### 2.2. Détection des lignes verticales
 
@@ -145,7 +139,7 @@ Cela permet de réduire les éléments non-pertinents et de préserver uniquemen
 
 Résultat :
 
-![image_erodée_lignes_verticales](assets/6lignes_verticales_erosion.png)
+<img src="assets/6lignes_verticales_erosion.png" width="450" />
 
 ---
 
@@ -159,13 +153,13 @@ Cette étape permet de redonner aux lignes verticales leur pleine largeur.
 
 Résultat :
 
-![image_dilatée_lignes_verticales](assets/7lignes_verticales_finale.png)
+<img src="assets/7lignes_verticales_finale.png" width="450" />
 
 #### Combinaison des deux images avec un OU logique:
 
 Résultat : 
 
-![image_avec_lignes](assets/8lignes_combines.png)
+<img src="assets/8lignes_combines.png" width="450" />
 
 ## 3. Extraction des Cellules
 
@@ -175,7 +169,7 @@ Résultat :
 - **Méthode** : Découpage vertical au milieu de l'image
 - **Résultat** : Concentration sur la partie contenant les cellules
 
-![Moitié droite isolée](assets/9moitie_droite_lignes_combines.png)
+<img src="assets/9moitie_droite_lignes_combines.png" width="450" />
 
 ---
 
@@ -189,8 +183,8 @@ Résultat :
   En trouvant le plus grand contours, nous pouvons ensuites exploiter les coordonnées du rectangles qui l'englobe pour mieux affiner l'analyse
 - **Paramètres** : Approximation polygonale à 2% de précision
 
-![](assets/plus_grand_contour.png)
-![Cadre principal détecté](assets/10roi_lignes_combinees.png)
+<img src="assets/plus_grand_contour.png" width="450" />
+<img src="assets/10roi_lignes_combinees.png" width="450" />
 
 ---
 
@@ -201,7 +195,7 @@ Résultat :
   - Réduction d'épaisseur des lignes à 1px
   - Séparation claire des cellules adjacentes
 
-![Lignes optimisées](assets/11roi_lignes_combines_minces.png)
+<img src="assets/11roi_lignes_combines_minces.png" width="450" />
 
 ---
 
@@ -215,7 +209,7 @@ Résultat :
 
 ```python
 # Extraits clés (montrés pour illustration)
-tolerance = 0.65
+tolerance = 0.45
 approximation = 0.1 * cv2.arcLength(contour, True)
 ```
 
@@ -229,7 +223,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 - **Méthode** : Soustraction des lignes verticales détectées
 - **Résultat** : Conservation uniquement des éléments non-structuraux
 
-![Image sans lignes verticales](assets/12sans_lignes_verticales.png)
+<img src="assets/12sans_lignes_verticales.png" width="450" />
 
 ---
 
@@ -239,7 +233,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 - **Coordonnées** : Basées sur le cadre principal détecté
 - **Précision** : Ajustement selon la première cellule
 
-![Zone d'intérêt découpée](assets/13sans_lignes_verticales_roi.png)
+<img src="assets/13sans_lignes_verticales_roi.png" width="450" />
 
 ---
 
@@ -250,7 +244,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
   - Élimination des petits artefacts
   - Lissage des contours irréguliers
 
-![Après ouverture morphologique](assets/14sans_lignes_verticales_roi_ouverture.png)
+<img src="assets/14sans_lignes_verticales_roi_ouverture.png" width="450" />
 
 ---
 
@@ -261,7 +255,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
   - Noyau horizontal (1x7)
   - 3 itérations
 
-![Éléments reconnectés](assets/15dilatee_roi_ouverture.png)
+<img src="assets/15dilatee_roi_ouverture.png" width="450" />
 
 ---
 
@@ -271,36 +265,36 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 - **Précision** : Conservation des formes angulaires
 
 | Masque Horizontal | Résultat après soustraction |
-|-------|-------|
-| ![Masque horizontal appliqué](assets/16masque_lignes_horizontales.png)| ![Résultat après soustraction](assets/17dilatee_roi_ouverture_sans_lignes_horizontales.png)|
+|-------------------|-----------------------------|
+| <img src="assets/16masque_lignes_horizontales.png" width="450" /> | <img src="assets/17dilatee_roi_ouverture_sans_lignes_horizontales.png" width="450" /> |
 
 ---
 
 ### 4.6. Amélioration de la Qualité
 #### Post-traitement Morphologique
-1. **Fermeture** Element structurant (5x5) : Combler les micro-interruptions
-2. **Ouverture** Element structurant  (3x3) : Affiner les contours
+1. **Fermeture** (5x5) : Combler les micro-interruptions  
+2. **Ouverture** (3x3) : Affiner les contours
 
 | Avant | Après |
 |-------|-------|
-| ![Avant post-traitement](assets/17dilatee_roi_ouverture_sans_lignes_horizontales.png) | ![Après post-traitement](assets/19dilatee_roi_ouverture_sans_lignes_horizontales_ouverture.png) |
+| <img src="assets/17dilatee_roi_ouverture_sans_lignes_horizontales.png" width="450" /> | <img src="assets/19dilatee_roi_ouverture_sans_lignes_horizontales_ouverture.png" width="450" /> |
 
 ---
 
-### 4.7 Filtrage Final
+### 4.7. Filtrage Final
 #### Combinaison Logique AND avec l'image binaire inversée
 - **Objectif** : Éliminer les faux positifs
 - **Méthode** : Intersection avec l'image inversée originale
 
-![Filtrage final](assets/20et_logique_img-dilatee_img-inversee.png)
+<img src="assets/20et_logique_img-dilatee_img-inversee.png" width="450" />
 
 ---
 
-### 4.8 Détection des Marques
+### 4.8. Détection des Marques
 #### Extraction des Contours Valides
 - **Critères** : 
   - Surface > 175 pixels²
   - Forme compacte
   - Position intra-cellule
 
-![Contours détectés](assets/21contours_checkmarks_img.png)
+<img src="assets/21contours_checkmarks_img.png" width="450" />

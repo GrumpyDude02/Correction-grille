@@ -1,6 +1,6 @@
-WIDTH = 1200
+WIDTH = 950
 HEIGHT = 600
-SAVE = True
+SAVE = False
 APP_NAME = "CorrectoGrille v1.0"
 COLORS = [
     (0, 0, 255),  # RED

@@ -78,6 +78,7 @@ class Grid:
     square_kernel3 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     square_kernel5 = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     tolerance = 0.65
+    seuil_croix = 0.7
     seuil_filtrage_surface_croix = 175
 
     def __init__(self, cv_image: np.ndarray):
@@ -512,7 +513,7 @@ class Grid:
             meilleure_collision = max(collisions, key=lambda x: x[2])
             
             # Seuil de certitude (60% de recouvrement)
-            if meilleure_collision[2] >= 0.6:
+            if meilleure_collision[2] >= Grid.seuil_croix:
                 ligne, colonne, _ = collisions[0]  # Prend la première (meilleure)
                 self.cells_state[ligne][colonne][0] = 1  # Croix certaine
                 

@@ -357,6 +357,13 @@ class App:
         """
         self._load_pdf_and_grid(index_func=lambda i: (i - 1) % len(self.pdfs))
 
+    def show_next_grid(self, event=None):
+        """
+        Affiche la grille suivante du PDF courant.
+        Utile pour naviguer à travers les grilles d’un même fichier.
+        """
+        self._load_pdf_and_grid(grid_func=lambda pdf: pdf.get_next_grid())
+
 
 
     def show_previous_grid(self, event=None):
@@ -366,9 +373,6 @@ class App:
         """
         self._load_pdf_and_grid(grid_func=lambda pdf: pdf.get_previous_grid())
 
-
-    def show_previous_grid(self, event=None):
-        self._load_pdf_and_grid(grid_func=lambda pdf: pdf.get_previous_grid())
 
     def open_file(self, event=None):
         file_paths = ctk.filedialog.askopenfilenames(
