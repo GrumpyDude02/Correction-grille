@@ -60,7 +60,7 @@ class ImageViewer(ctk.CTkCanvas):
             max(1, int(App.cv_image.shape[0] * self.scale)),
         )
         resized_cv_img = cv2.resize(
-            App.cv_image, new_size, interpolation=cv2.INTER_LINEAR
+            App.cv_image, new_size, interpolation=cv2.INTER_AREA
         )
 
         # Convert BGR to RGB
