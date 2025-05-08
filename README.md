@@ -124,10 +124,14 @@ Résultat :
 <p align="center">
 <img src="assets/etapes/7-lignes_horizontales.png" width="300" />
 </p>
+
+<p align="center">
+
 | Transformée de Hough | Résultat de la dilatation horizontale| Résultat ET Logique |
 |----------------------|--------------------------------------|----------|
 | <img src="assets/etapes/8-hough_horizontal.png" width="250"/> | <img src="assets/etapes/7-lignes_horizontales.png" width="250"/>| <img src="assets/etapes/11-lignes_horizontales_finale.png" width="250"/> |
 
+</p>
 
 ### 2.2. Détection des lignes verticales
 
@@ -161,9 +165,14 @@ Résultat :
 <p align="center">
 <img src="assets/etapes/6-lignes_verticales.png" width="300" />
 </p>
+
+<p align="center">
+
 | Transformée de Hough | Résultat de la dilatation verticale| Résultat ET Logique &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|
 |----------------------|--------------------------------------|----------|
 | <img src="assets/etapes/9-hough_vertical.png" width="250"/> | <img src="assets/etapes/6-lignes_verticales.png" width="250"/>| <img src="assets/etapes/10-lignes_verticales_finale.png" width="250"/> |
+
+</p>
 
 #### Combinaison des deux images avec un OU logique:
 
@@ -275,21 +284,25 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 #### Masquage Sélectif
 - **Technique** : Soustraction des lignes horizontales
 - **Précision** : Conservation des formes angulaires
+<p align="center">
 
 | Masque Horizontal | Résultat après soustraction |
 |-------------------|-----------------------------|
 | <img src="assets/etapes/23-masque_horizontal_cadree.png" width="300" /> | <img src="assets/etapes/24-diff_masque_horizontal_sans_lignes_verticales_dilatee.png" width="300" /> |
 
+</p>
 
 ### 4.6. Amélioration de la Qualité
 #### Post-traitement Morphologique
 1. **Fermeture** (5x5) : Combler les micro-interruptions  
 2. **Ouverture** (3x3) : Affiner les contours
+<p align="center">
 
 | Avant | Après |
 |-------|-------|
 | <img src="assets/etapes/24-diff_masque_horizontal_sans_lignes_verticales_dilatee.png" width="300" /> | <img src="assets/etapes/26-apres_ouverture.png" width="300" /> |
 
+</p>
 ---
 
 ### 4.7. Filtrage Final
