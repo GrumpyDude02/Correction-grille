@@ -1,6 +1,7 @@
 WIDTH = 950
 HEIGHT = 600
-SAVE = False
+SAVE = True
+SAVE_PATH = "assets/etapes"
 APP_NAME = "CorrectoGrille v1.0"
 COLORS = [
     (0, 0, 255),  # RED

@@ -12,9 +12,9 @@ Ce répertoire contient le code source du projet technique dédié à la **corre
 
 ### Exemple d’image
 
-Voici une image utilisée comme exemple pour illustrer les différentes étapes du traitement :
+Voici l'image utilisée comme exemple pour illustrer les différentes étapes du traitement :
 
-<img src="assets/0original.png" width="450" />
+<img src="assets/etapes/0-originale.png" width="450" />
 
 ---
 
@@ -57,7 +57,7 @@ Cela permet de corriger automatiquement l'inclinaison de l'image et d'adapter le
 La première étape visuelle consiste à convertir l'image couleur en **niveau de gris**, ce qui simplifie les traitements suivants :
 
 
-<img src="assets/1niveau_gris.png" width="450" />
+<img src="assets/etapes/1-niveau_gris.png" width="450" />
 
 ---
 
@@ -72,16 +72,16 @@ On utilise la méthode `ADAPTIVE_THRESH_GAUSSIAN_C` de OpenCV avec les paramètr
 
 Cela produit une image en noir et blanc plus robuste, même en cas d’éclairage inégal :
 
-<img src="assets/2binaire.png" width="450" />
+<img src="assets/etapes/2-binaire.png" width="450" />
 
 ---
 
-### 1.4. Filtrage & inversion
+### 1.4. Inversion
 
 L'image est ensuite **inversée** (noir ⇄ blanc) pour faciliter les détections de lignes et coches.  
 On applique aussi un **filtrage** pour réduire les petits bruits indésirables.
 
-<img src="assets/3inverse.png" width="450" />
+<img src="assets/etapes/3-inverse.png" width="450" />
 
 ---
 
@@ -107,7 +107,7 @@ Cela permet d'effacer les petites perturbations et de renforcer la structure hor
 
 Résultat :
 
-<img src="assets/4lignes_horizontales_erosion.png" width="450" />
+<img src="assets/etapes/4-lignes_horizontales_erosion.png" width="450" />
 
 ---
 
@@ -121,7 +121,12 @@ Cette étape reconstruit les lignes nettes sur l’image en supprimant les rési
 
 Résultat :
 
-<img src="assets/5lignes_horizontales_finale.png" width="450" />
+<img src="assets/etapes/7-lignes_horizontales.png" width="450" />
+
+| Transformée de Hough | Résultat de la dilatation horizontale| Résultat ET Logique |
+|----------------------|--------------------------------------|----------|
+| <img src="assets/etapes/8-hough_horizontal.png" width="250"/> | <img src="assets/etapes/7-lignes_horizontales.png" width="250"/>| <img src="assets/etapes/11-lignes_horizontales_finale.png" width="250"/> |
+
 
 ### 2.2. Détection des lignes verticales
 
@@ -139,7 +144,7 @@ Cela permet de réduire les éléments non-pertinents et de préserver uniquemen
 
 Résultat :
 
-<img src="assets/6lignes_verticales_erosion.png" width="450" />
+<img src="assets/etapes/5-lignes_verticales_erosion.png" width="450" />
 
 ---
 
@@ -153,13 +158,17 @@ Cette étape permet de redonner aux lignes verticales leur pleine largeur.
 
 Résultat :
 
-<img src="assets/7lignes_verticales_finale.png" width="450" />
+<img src="assets/etapes/6-lignes_verticales.png" width="450" />
+
+| Transformée de Hough | Résultat de la dilatation verticale| Résultat ET Logique &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|
+|----------------------|--------------------------------------|----------|
+| <img src="assets/etapes/9-hough_vertical.png" width="250"/> | <img src="assets/etapes/6-lignes_verticales.png" width="250"/>| <img src="assets/etapes/10-lignes_verticales_finale.png" width="250"/> |
 
 #### Combinaison des deux images avec un OU logique:
 
 Résultat : 
 
-<img src="assets/8lignes_combines.png" width="450" />
+<img src="assets/etapes/12-lignes_combines.png" width="450" />
 
 ## 3. Extraction des Cellules
 
@@ -168,9 +177,9 @@ Résultat :
 - **Objectif** : Éliminer les éléments non pertinents à gauche de la grille
 - **Méthode** : Découpage vertical au milieu de l'image
 - **Résultat** : Concentration sur la partie contenant les cellules
-
-<img src="assets/9moitie_droite_lignes_combines.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/13-moitie_droite_lignes_combinees.png" width="300" />
+</p>
 ---
 
 ### 3.2 Détection du Cadre Principal (plus grand contour)
@@ -181,9 +190,15 @@ Résultat :
 
   En trouvant le plus grand contours, nous pouvons ensuites exploiter les coordonnées du rectangles qui l'englobe pour mieux affiner l'analyse
 - **Paramètres** : Approximation polygonale à 2% de précision
-
-<img src="assets/plus_grand_contour.png" width="450" />
-<img src="assets/10roi_lignes_combinees.png" width="450" />
+<p align="center">
+<img src="assets/etapes/15-rectangle_contour.png" width="300" />
+</p>
+<h1 align="center">
+↓
+</h1>
+<p align="center">
+<img src="assets/etapes/16-ligne_combinees_cadree.png" width="300" />
+</p>
 
 ---
 
@@ -194,7 +209,7 @@ Résultat :
   - Réduction d'épaisseur des lignes à 1px
   - Séparation claire des cellules adjacentes
 
-<img src="assets/11roi_lignes_combines_minces.png" width="450" />
+<img src="assets/etapes/17-lignes_minces_cadree.png" width="450" />
 
 ---
 
@@ -230,42 +245,30 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 - **Objectif** : Isoler les croix des cellules
 - **Méthode** : Soustraction des lignes verticales détectées
 - **Résultat** : Conservation uniquement des éléments non-structuraux
+<p align="center">
+<img src="assets/etapes/20-sans_lignes_verticales_cadree.png" width="300" />
+</p>
 
-<img src="assets/12sans_lignes_verticales.png" width="450" />
-
----
-
-### 4.2. Découpage de la Zone d'Intérêt
-#### Isolation de la Région Active
-- **Cible** : Partie droite contenant les réponses
-- **Coordonnées** : Basées sur le cadre principal détecté
-- **Précision** : Ajustement selon la première cellule
-
-<img src="assets/13sans_lignes_verticales_roi.png" width="450" />
-
----
-
-### 4.3. Nettoyage Morphologique
+### 4.2. Nettoyage Morphologique
 #### Ouverture pour Suppression du Bruit
 - **Noyau** : 3x3 pixels
 - **Effet** : 
   - Élimination des petits artefacts
   - Lissage des contours irréguliers
-
-<img src="assets/14sans_lignes_verticales_roi_ouverture.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/21-sans_lignes_verticales_ouverture_cadree.png" width="300" />
+</p>
 ---
 
-### 4.4. Reconnexion des Éléments
+### 4.3. Reconnexion des Éléments
 #### Dilatation Horizontale
 - **But** : Reconnecter les parties disjointes des croix
 - **Paramètres** : 
   - Noyau horizontal (1x7)
   - 3 itérations
-
-<img src="assets/15dilatee_roi_ouverture.png" width="450" />
-
----
+<p align="center">
+<img src="assets/etapes/22-sans_lignes_verticales_dilatee_cadree.png" width="300" />
+</p>
 
 ### 4.5. Filtrage des Lignes Horizontales Résiduelles
 #### Masquage Sélectif
@@ -274,9 +277,8 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 | Masque Horizontal | Résultat après soustraction |
 |-------------------|-----------------------------|
-| <img src="assets/16masque_lignes_horizontales.png" width="450" /> | <img src="assets/17dilatee_roi_ouverture_sans_lignes_horizontales.png" width="450" /> |
+| <img src="assets/etapes/23-masque_horizontal_cadree.png" width="450" /> | <img src="assets/etapes/24-diff_masque_horizontal_sans_lignes_verticales_dilatee.png" width="450" /> |
 
----
 
 ### 4.6. Amélioration de la Qualité
 #### Post-traitement Morphologique
@@ -285,7 +287,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 | Avant | Après |
 |-------|-------|
-| <img src="assets/17dilatee_roi_ouverture_sans_lignes_horizontales.png" width="450" /> | <img src="assets/19dilatee_roi_ouverture_sans_lignes_horizontales_ouverture.png" width="450" /> |
+| <img src="assets/etapes/24-diff_masque_horizontal_sans_lignes_verticales_dilatee.png" width="450" /> | <img src="assets/etapes/26-apres_ouverture.png" width="450" /> |
 
 ---
 
@@ -293,9 +295,9 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 #### Combinaison Logique AND avec l'image binaire inversée
 - **Objectif** : Éliminer les faux positifs
 - **Méthode** : Intersection avec l'image inversée originale
-
-<img src="assets/20et_logique_img-dilatee_img-inversee.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/27-image_dilatee_ET_image_inversee.png" width="300" />
+</p>
 ---
 
 ### 4.8. Détection des croix
@@ -305,4 +307,4 @@ approximation = 0.1 * cv2.arcLength(contour, True)
   - Forme compacte
   - Position intra-cellule
 
-<img src="assets/21contours_checkmarks_img.png" width="450" />
+<img src="assets/etapes/28-contours_croix.png" width="450" />

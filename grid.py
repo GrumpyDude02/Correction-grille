@@ -2,62 +2,38 @@ import cv2, numpy as np
 import imutils
 import tools
 import constants as cst
+from matplotlib import pyplot as plt
 from enum import Enum
 
-"""
-Module `grid.py`
-Ce module contient des classes et des fonctions pour analyser et traiter des grilles contenant des cases et des croix de vérification (checkmarks). 
-Il utilise OpenCV pour le traitement d'image et des outils personnalisés pour extraire des informations spécifiques.
-Classes:
----------
-1. `GridType`:
-    - Enumération pour définir les différents types de grilles.
-    - Types possibles : `Unknown`, `PFE_Finale`, `PFE_Inter`, `PFA`.
-2. `Grid`:
-    - Classe principale pour analyser une grille.
-    - Contient des méthodes pour détecter le type de grille, isoler les lignes, extraire les cellules, détecter les croix de vérification, et calculer des scores.
-Attributs de la classe `Grid`:
-------------------------------
-- `k_size`: Taille des kernels pour les opérations morphologiques.
-- `horizontal_kernel`, `vertical_kernel`: Kernels pour isoler les lignes horizontales et verticales.
-- `square_kernel3`, `square_kernel5`: Kernels carrés pour des opérations morphologiques spécifiques.
-- `tolerance`: Tolérance pour la détection des cellules.
-- `save`: Indique si les images doivent être sauvegardées.
-- `threshold`: Seuil pour certaines opérations.
-Méthodes de la classe `Grid`:
------------------------------
-1. `__init__(cv_image: np.ndarray)`:
-    - Initialise une instance de la classe `Grid`.
-    - Détecte le type et la rotation de la grille.
-2. `detect_type_n_rotation(original_img)`:
-    - Détecte le type de grille à partir d'un QR code et ajuste la rotation de l'image.
-3. `_pretraitement()`:
-    - Prétraite l'image pour la convertir en niveaux de gris, binariser et inverser les couleurs.
-4. `_extraction_lignes()`:
-    - Isole les lignes horizontales et verticales de la grille à l'aide d'opérations morphologiques.
-5. `_extraction_cellules()`:
-    - Extrait les cellules de la grille en détectant les contours et en triant les boîtes englobantes.
-6. `_extraction_croix()`:
-    - Isole les croix de vérification (checkmarks) en supprimant les lignes et en appliquant des opérations morphologiques.
-7. `_draw_cells_bboxs()`:
-    - Dessine les boîtes englobantes des cellules et des croix de vérification sur l'image originale.
-8. `_save_imgs(folder)`:
-    - Sauvegarde les images intermédiaires dans un dossier spécifié.
-9. `run_analysis()`:
-    - Exécute l'analyse complète de la grille et retourne l'image annotée et le type de grille.
-10. `calculate_score()`:
-    - Calcule un score basé sur l'état des cellules.
-11. `_get_occupied_cells_per_row(offset_cells)`:
-    - Identifie les cellules occupées par les croix de vérification pour chaque ligne.
-12. `update_cell_state_color()`:
-    - Met à jour les couleurs des cellules en fonction de leur état.
-13. `set_selected_cell(row, cols)`:
-    - Définit une cellule sélectionnée et désélectionne les autres.
-14. `get_warnings_errors()`:
-    - Retourne les avertissements et erreurs détectés lors de l'analyse de la grille.
-15. `get_problematic_cells_per_row()`:
-    - Retourne les lignes contenant des cellules problématiques (par exemple, plusieurs croix de vérification).
-"""
+# -------------------------------------------------------------------------------------------------------------
+#                                   Structure du fichier et catégorisation des fonctions
+# -------------------------------------------------------------------------------------------------------------
+
+# Catégorisation des fonctions :
+# 1. Fonctions d'aide:
+#    - _add_img_to_dict : Ajoute une image au dictionnaire de sauvegarde avec un nom spécifique.
+#    - _draw_checkmarks_bboxes : Dessine les contours des croix détectées sur l'image annotée.
+#    - _draw_cells_bboxs : Dessine les contours des cellules avec leur couleur d'état respective.
+#    - _get_occupied_cells_per_row : Détermine les cellules contenant des croix en calculant les zones de chevauchement.
+#    - _save_imgs : Sauvegarde les images intermédiaires dans un dossier spécifié.
+
+# 2. Fonctions principales :
+#    - _detect_type_n_rotation : Détecte le type de grille et ajuste la rotation de l'image.
+#    - _pretraitement : Effectue le prétraitement de l'image (conversion en niveaux de gris, binarisation, etc.).
+#    - _extraction_lignes : Isole les lignes structurelles de la grille par morphologie mathématique.
+#    - _extraction_cellules : Extrait les cellules de la grille par analyse des contours.
+#    - _extraction_croix : Détecte et extrait les croix de validation dans les cellules.
+#    - run_analysis : Exécute l'analyse complète de la grille.
+#    - calculate_score : Calcule le score pondéré selon les cases cochées.
+
+# 3. Fonctions d'interface avec l'application :
+#    - draw_all_bboxs : Dessine toutes les boîtes englobantes (cellules et croix) sur l'image annotée.
+#    - update_cell_state_color : Met à jour les couleurs des lignes vides.
+#    - set_selected_cell : Force la sélection d'une cellule dans une ligne.
+#    - get_warnings_errors : Détecte les anomalies structurelles.
+#    - get_problematic_cells_per_row : Identifie les lignes avec détections ambiguës.
+#    - highlight_row : Surligne une ligne et ses cellules sélectionnées.
+#    - clear_image : Réinitialise l'image annotée.
 
 # Les fonction precédées de "_" sont privées et ne doivent pas être appelées directement à l'extérieur de la classe
 # Les fonctions publiques sont celles qui n'ont pas de "_" au début de leur nom
@@ -95,11 +71,17 @@ class Grid:
         self.binary_img = None
         self.inverted_img = None
         self.combined_lines = None
-        self.no_lines = None
+        self.cropped_no_lines = None
         self.sorted_cells = None
         self.cells_state = None
         self.warnings = None
+        self.save_counter = 0
         self.imgs_dict = {}
+
+    def _add_img_to_dict(self, name, img):
+        """Ajoute une image au dictionnaire de sauvegarde un nom spécifique."""
+        self.imgs_dict[f"{self.save_counter}-{name}"] = img
+        self.save_counter += 1
 
     # ----------------------------------------------------------------------------------------------------------------------
     #           Fonctions de Traitement de l'image (Fonctions Principales)
@@ -132,26 +114,24 @@ class Grid:
     def _pretraitement(self):
         """Prétraitement de l'image avant analyse"""
         # Sauvegarde de l'image originale
-        self.imgs_dict["0original"] = self.original_matrix.copy()
-
+        self._add_img_to_dict("originale", self.original_matrix.copy())
         # Conversion en niveaux de gris (réduction à 1 canal)
         self.gray_img = cv2.cvtColor(self.original_matrix, cv2.COLOR_BGR2GRAY)
-        self.imgs_dict["1niveau_gris"] = self.gray_img.copy()
+        self._add_img_to_dict("niveau_gris", self.gray_img.copy())
 
         # Binarisation adaptative avec seuillage gaussien
-        # - Avantage: Maintien de la lisibilité malgré les variations lumineuses
         # - Paramètres:
         #   * Taille de voisinage: 51px (zone analysée pour calculer le seuil)
         #   * Constante de soustraction: 5 (ajustement fin du seuil)
         self.binary_img = cv2.adaptiveThreshold(
             self.gray_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 51, 5
         )
-        self.imgs_dict["2binaire"] = self.binary_img.copy()
+        self._add_img_to_dict("binaire", self.binary_img.copy())
 
         # Inversion des couleurs (noir <-> blanc)
         # - Nécessaire pour les opérations morphologiques suivantes
         self.inverted_img = cv2.bitwise_not(self.binary_img.copy())
-        self.imgs_dict["3inverse"] = self.inverted_img.copy()
+        self._add_img_to_dict("inverse", self.inverted_img.copy())
 
     def _extraction_lignes(self):
         """Isolation des lignes structurelles par morphologie mathématique"""
@@ -161,16 +141,15 @@ class Grid:
         # ---------------------------------------------------------------
 
         # Érosion horizontale agressive
-        # - Objectif: Supprimer les éléments verticaux
         # - Noyau: [1×7] - Sensibilité horizontale
         # - 8 itérations pour une suppression complète
         self.horizontal_lines = cv2.morphologyEx(
             self.inverted_img, cv2.MORPH_ERODE, Grid.horizontal_kernel, iterations=8
         )
-        self.imgs_dict["4lignes_horizontales_erosion"] = self.horizontal_lines.copy()
-
+        self._add_img_to_dict(
+            "lignes_horizontales_erosion", self.horizontal_lines.copy()
+        )
         # Dilatation de reconstruction
-        # - Objectif: Restaurer l'épaisseur des lignes
         # - 14 itérations pour compenser l'érosion initiale
         self.horizontal_lines = cv2.morphologyEx(
             self.horizontal_lines,
@@ -178,17 +157,6 @@ class Grid:
             Grid.horizontal_kernel,
             iterations=14,
         )
-        self.horizontal_lines = cv2.bitwise_and(
-            self.horizontal_lines,
-            tools.detecter_lignes_hough(
-                self.horizontal_lines, longueur_min=int(self.original_matrix.shape[1]*0.1)
-            ),
-        )
-        self.horizontal_lines = cv2.morphologyEx(
-            self.horizontal_lines, cv2.MORPH_CLOSE, Grid.square_kernel3, iterations=1
-        )
-
-        self.imgs_dict["5lignes_horizontales_finale"] = self.horizontal_lines.copy()
         # ---------------------------------------------------------------
         # Traitement des LIGNES VERTICALES
         # ---------------------------------------------------------------
@@ -199,28 +167,42 @@ class Grid:
         self.vertical_lines = cv2.morphologyEx(
             self.inverted_img, cv2.MORPH_ERODE, Grid.vertical_kernel, iterations=8
         )
-        self.imgs_dict["6lignes_verticales_erosion"] = self.vertical_lines.copy()
-
+        self._add_img_to_dict("lignes_verticales_erosion", self.vertical_lines.copy())
         # Dilatation modérée
         # - Même nombre d'itérations que l'érosion pour équilibre
         self.vertical_lines = cv2.morphologyEx(
             self.vertical_lines, cv2.MORPH_DILATE, Grid.vertical_kernel, iterations=8
         )
-        self.vertical_lines = cv2.bitwise_and(
-            self.vertical_lines,
-            tools.detecter_lignes_hough(
-                self.vertical_lines, longueur_min=int(self.original_matrix.shape[0] * 0.05)
-            ),
-        )
-        self.vertical_lines = cv2.morphologyEx(
-            self.vertical_lines, cv2.MORPH_CLOSE, Grid.square_kernel3, iterations=1
-        )
-        self.imgs_dict["7lignes_verticales_finale"] = self.vertical_lines.copy()
+        self._add_img_to_dict("lignes_verticales", self.vertical_lines.copy())
+        self._add_img_to_dict("lignes_horizontales", self.horizontal_lines.copy())
 
+        # - HoghLinesP pour affiner les lignes détectées
+        hough_horizontal = tools.detecter_lignes_hough(
+            self.horizontal_lines,
+            longueur_min=int(self.original_matrix.shape[1] * 0.1),
+            epaisseur=3,  # epaisseur de la ligne a dessiner sur l'image retournée par la fonction
+        )
+        hough_vertical = tools.detecter_lignes_hough(
+            self.vertical_lines,
+            longueur_min=int(self.original_matrix.shape[0] * 0.1),
+            epaisseur=3,  # epaisseur de la ligne a dessiner sur l'image retournée par la fonction
+        )
+
+        self._add_img_to_dict("hough_horizontal", hough_horizontal.copy())
+        self._add_img_to_dict("hough_vertical", hough_vertical.copy())
+
+        self.horizontal_lines = cv2.bitwise_and(hough_horizontal, self.horizontal_lines)
+        self.vertical_lines = cv2.bitwise_and(hough_vertical, self.vertical_lines)
+
+        self._add_img_to_dict("lignes_verticales_finale", self.vertical_lines.copy())
+        self._add_img_to_dict(
+            "lignes_horizontales_finale", self.horizontal_lines.copy()
+        )
         # Combinaison des résultats
         # - Fusion des lignes horizontales et verticales détectées
+
         self.combined_lines = cv2.bitwise_or(self.horizontal_lines, self.vertical_lines)
-        self.imgs_dict["8lignes_combines"] = self.combined_lines.copy()
+        self._add_img_to_dict("lignes_combines", self.combined_lines.copy())
 
     def _extraction_cellules(self):
         """Extraction des cellules de la grille par analyse des contours"""
@@ -230,8 +212,9 @@ class Grid:
         # ---------------------------------------------------------------
         # On isole la partie droite qui contient les cellules à analyser
         rhs_combined_lines = self.combined_lines[:, self.middle_x :]
-        self.imgs_dict["9moitie_droite_lignes_combines"] = rhs_combined_lines.copy()
-
+        self._add_img_to_dict(
+            "moitie_droite_lignes_combinees", rhs_combined_lines.copy()
+        )
         # ---------------------------------------------------------------
         # Étape 2: Détection du cadre principal
         # ---------------------------------------------------------------
@@ -240,24 +223,44 @@ class Grid:
             rhs_combined_lines, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
         )
 
-        # Sélection du plus grand rectangle détecté
-        self.bbox_biggest_rect = cv2.boundingRect(
-            max(outer_contours, key=lambda x: cv2.contourArea(x))
+        # Sélection du plus grand contour détecté
+        biggest_contour = max(outer_contours, key=lambda x: cv2.contourArea(x))
+        self.bbox_biggest_rect = cv2.boundingRect(biggest_contour)
+        rhs = self.original_matrix[:, self.middle_x :].copy()
+        cv2.drawContours(
+            rhs,
+            [biggest_contour],
+            -1,
+            (0, 0, 255),
+            2,
         )
-
+        self._add_img_to_dict("contour_principal", rhs.copy())
+        rhs = self.original_matrix[:, self.middle_x :].copy()
+        cv2.rectangle(
+            rhs,
+            (self.bbox_biggest_rect[0] + 10, self.bbox_biggest_rect[1]),
+            (
+                self.bbox_biggest_rect[0] + self.bbox_biggest_rect[2],
+                self.bbox_biggest_rect[1] + self.bbox_biggest_rect[3],
+            ),
+            (0, 255, 0),
+            5,
+        )
+        self._add_img_to_dict("rectangle_contour", rhs.copy())
         # Découpage de la région d'intérêt (ROI)
         x, y, w, h = self.bbox_biggest_rect
         self.cropped_combined_lines = rhs_combined_lines[y : y + h, x : x + w]
-        self.imgs_dict["10roi_lignes_combinees"] = self.cropped_combined_lines.copy()
-
+        self._add_img_to_dict(
+            "ligne_combinees_cadree", self.cropped_combined_lines.copy()
+        )
         # ---------------------------------------------------------------
         # Étape 3: Affinement des lignes
         # ---------------------------------------------------------------
         # Amincissement des lignes pour mieux séparer les cellules
         # self.combined_cropped_lines = cv2.morphologyEx(self.cropped_combined_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1)
         self.cropped_combined_lines = cv2.ximgproc.thinning(self.cropped_combined_lines)
-        self.imgs_dict["11roi_lignes_combines_minces"] = (
-            self.cropped_combined_lines.copy()
+        self._add_img_to_dict(
+            "lignes_minces_cadree", self.cropped_combined_lines.copy()
         )
 
         # ---------------------------------------------------------------
@@ -267,12 +270,49 @@ class Grid:
         inner_contours, _ = cv2.findContours(
             self.cropped_combined_lines, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
         )
-
+        rhs = self.original_matrix[:, self.middle_x :].copy()
+        rhs =rhs[y : y + h, x : x + w]
+        cv2.drawContours(
+            rhs,
+            inner_contours,
+            -1,
+            (0, 0, 255),
+            2,
+        )
+        self._add_img_to_dict("contours_internes", rhs.copy())
         bboxes = []
         areas = [cv2.contourArea(c) for c in inner_contours]
         median = np.median(areas)  # Surface médiane de référence
 
+        # areas_test = [
+        #     a
+        #     for a in areas
+        #     if median * (1 - Grid.tolerance) < a < median * (1 + Grid.tolerance)
+        # ]
+        # plt.figure(figsize=(8, 5))
+        # plt.hist(np.log(areas_test), bins="auto", color="blue", alpha=0.7, edgecolor='black')
+        # plt.axvline(np.log(median), color="red", linestyle="--", label=f"Median: {median:.2f}")  # Median line
+        # plt.xlabel("Log(Surface)")
+        # plt.ylabel("Occurences")
+        # plt.title("Histogramme des Surfaces (echelle logarithmique)")
+        # plt.grid(True, linestyle='--', alpha=0.5)
+        # plt.tight_layout()
+        # plt.savefig("assets/etapes/histogram1.png")
+        # plt.close()
+
+        # plt.figure(figsize=(8, 5))
+        # plt.hist(np.log(areas), bins="auto", color="green", alpha=0.7, edgecolor='black')
+        # plt.axvline(np.log(median), color="red", linestyle="--", label=f"Median: {median:.2f}")  # Median line
+        # plt.xlabel("Log(Surface)")
+        # plt.ylabel("Occurences")
+        # plt.title("Histogramme des Surfaces (echelle logarithmique)")
+        # plt.grid(True, linestyle='--', alpha=0.5)
+        # plt.tight_layout()
+        # plt.savefig("assets/etapes/histogram0.png")
+        # plt.close()
+
         # Filtrage des cellules valides
+        rhs = self.original_matrix[:, self.middle_x :].copy()[y : y + h, x : x + w]
         for contour in inner_contours:
             approx = cv2.approxPolyDP(
                 contour, 0.02 * cv2.arcLength(contour, True), True
@@ -280,13 +320,17 @@ class Grid:
             area = cv2.contourArea(contour)
 
             # Critères de validation:
-            # 1. Forme rectangulaire (4 côtés)
+            # 1. Forme ayant 3,4 ou 5 côtés (tolerance de 1 coté)
             # 2. Surface dans la plage acceptable (médiane ± tolérance)
             if 3 <= len(approx) <= 5 and median * (
                 1 - Grid.tolerance
             ) < area < median * (1 + Grid.tolerance):
-                bboxes.append(cv2.boundingRect(contour))
+                rect= cv2.boundingRect(contour)
+                bboxes.append(rect)
+                cv2.rectangle(rhs, rect, (0, 255, 0), 2)  # Dessin de la boîte englobante
 
+                
+        self._add_img_to_dict("contours_internes", rhs.copy())
         # ---------------------------------------------------------------
         # Étape 5: Organisation des cellules
         # ---------------------------------------------------------------
@@ -295,7 +339,7 @@ class Grid:
 
         # Initialisation de la matrice d'état:
         # - Premier indice: état (0=vide, 1=cochée)
-        # - Second indice: couleur (2=par défaut)
+        # - Second indice: couleur (1=par défaut)
         self.cells_state = [[[0, 1] for _ in ligne] for ligne in self.sorted_cells]
 
     def _extraction_croix(self):
@@ -308,77 +352,75 @@ class Grid:
         # ---------------------------------------------------------------
         # Étape 1: Suppression des lignes verticales
         # ---------------------------------------------------------------
-        # Soustraction des lignes verticales pour isoler les croix
-        self.no_lines = cv2.absdiff(self.inverted_img, self.vertical_lines)
-        self.imgs_dict["12sans_lignes_verticales"] = self.no_lines.copy()
-
-        # ---------------------------------------------------------------
-        # Étape 2: Découpage précis de la zone à analyser
-        # ---------------------------------------------------------------
-        # 1. Isolation de la moitié droite
-        right_no_lines = self.no_lines[:, self.middle_x :]
-
-        # 2. Découpage selon le ROI principal
-        # 3. Ajustement relatif à la première cellule
-        self.cropped_no_lines = right_no_lines[
+        no_vertical_lines = cv2.absdiff(
+            self.vertical_lines,
+            self.inverted_img,
+        )
+        cropped_no_vertical_lines = no_vertical_lines[:, self.middle_x :][
             y_roi : y_roi + h_roi, x_roi : x_roi + w_roi
-        ][y_cell:, x_cell:]
-        self.imgs_dict["13sans_lignes_verticales_roi"] = self.cropped_no_lines.copy()
-
+        ][
+            y_cell:, x_cell:
+        ]  # cadrage a partir des coordonnées de la premiere cellule detectée
+        self._add_img_to_dict(
+            "sans_lignes_verticales_cadree", cropped_no_vertical_lines.copy()
+        )
         # ---------------------------------------------------------------
-        # Étape 3: Nettoyage initial
+        # Étape 2: Nettoyage initial
         # ---------------------------------------------------------------
         # Ouverture morphologique pour supprimer le bruit (noyau 3x3)
-        self.cropped_no_lines = cv2.morphologyEx(
-            self.cropped_no_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
+        cropped_no_vertical_lines = cv2.morphologyEx(
+            cropped_no_vertical_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
         )
-        self.imgs_dict["14sans_lignes_verticales_roi_ouverture"] = (
-            self.cropped_no_lines.copy()
+        self._add_img_to_dict(
+            "sans_lignes_verticales_ouverture_cadree", cropped_no_vertical_lines.copy()
         )
 
         # ---------------------------------------------------------------
-        # Étape 4: Reconstitution des croix fragmentées
+        # Étape 3: Reconstitution des croix fragmentées
         # ---------------------------------------------------------------
         # Dilatation horizontale pour reconnecter les segments de croix
         dilated_img = cv2.morphologyEx(
-            self.cropped_no_lines,
+            cropped_no_vertical_lines,
             cv2.MORPH_DILATE,
             Grid.horizontal_kernel,
             iterations=3,
         )
-        self.imgs_dict["15dilatee_roi_ouverture"] = dilated_img.copy()
+        self.imgs_dict["sans_lignes_verticales_dilatee_cadree"] = dilated_img.copy()
+        self._add_img_to_dict(
+            "sans_lignes_verticales_dilatee_cadree", dilated_img.copy()
+        )
 
         # ---------------------------------------------------------------
-        # Étape 5: Suppression des artefacts horizontaux résiduels
+        # Étape 4: Suppression des artefacts horizontaux résiduels
         # ---------------------------------------------------------------
         # Masquage des lignes horizontales restantes
         mask_horizontal = self.horizontal_lines[:, self.middle_x :][
             y_roi : y_roi + h_roi, x_roi : x_roi + w_roi
         ][y_cell:, x_cell:]
-        self.imgs_dict["16masque_lignes_horizontales"] = mask_horizontal.copy()
+        self._add_img_to_dict("masque_horizontal_cadree", mask_horizontal.copy())
 
         dilated_img = cv2.absdiff(dilated_img, mask_horizontal)
-
-        self.imgs_dict["17dilatee_sans_lignes_horizontales"] = dilated_img.copy()
+        self._add_img_to_dict(
+            "diff_masque_horizontal_sans_lignes_verticales_dilatee", dilated_img
+        )
 
         # ---------------------------------------------------------------
-        # Étape 6: Post-traitement morphologique
+        # Étape 5: Post-traitement morphologique
         # ---------------------------------------------------------------
         # 1. Fermeture (noyau 5x5) pour combler les petits trous
         # 2. Ouverture (noyau 3x3) pour lisser les contours
         dilated_img = cv2.morphologyEx(
             dilated_img, cv2.MORPH_CLOSE, Grid.square_kernel5, iterations=1
         )
+        self._add_img_to_dict("apres_fermeture", dilated_img.copy())
 
         dilated_img = cv2.morphologyEx(
             dilated_img, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
         )
-
-        self.imgs_dict["18apres_fermeture"] = dilated_img.copy()
-        self.imgs_dict["19apres_ouverture"] = dilated_img.copy()
+        self._add_img_to_dict("apres_ouverture", dilated_img.copy())
 
         # ---------------------------------------------------------------
-        # Étape 7: Filtrage final par cohérence lumineuse
+        # Étape 6: Filtrage final par cohérence lumineuse
         # ---------------------------------------------------------------
         # Intersection avec l'image originale inversée
         final_img = cv2.bitwise_and(
@@ -387,16 +429,24 @@ class Grid:
                 y_roi : y_roi + h_roi, x_roi : x_roi + w_roi
             ][y_cell:, x_cell:],
         )
-        self.imgs_dict["20resultat_final"] = final_img.copy()
-        self.cropped_no_lines = final_img
+        self._add_img_to_dict("image_dilatee_ET_image_inversee", final_img.copy())
+        self.cropped_no_lines = final_img.copy()
+        temp = self.original_matrix.copy()[:,self.middle_x:][y_roi : y_roi + h_roi, x_roi : x_roi + w_roi][y_cell:, x_cell:]
 
         # ---------------------------------------------------------------
-        # Étape 8: Détection des contours des croix
+        # Étape 7: Détection des contours des croix
         # ---------------------------------------------------------------
         contours, _ = cv2.findContours(
             final_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
-
+        cv2.drawContours(
+            temp,
+            contours,
+            -1,
+            (0, 0, 255),
+            2,
+        )
+        self._add_img_to_dict("contours_croix", temp.copy())
         # Filtrage par taille minimale
         self.checkmark_bboxes = [
             cv2.boundingRect(c)
@@ -405,90 +455,17 @@ class Grid:
         ]
 
         # ---------------------------------------------------------------
-        # Étape 9: Cartographie des collisions
+        # Étape 8: Cartographie des collisions
         # ---------------------------------------------------------------
         # Ajustement des coordonnées des cellules
         cellules_decalees = [
             tools.add_offset_bbox(ligne, (-x_cell, -y_cell))
             for ligne in self.sorted_cells
         ]
-
         # Calcul des intersections croix/cellules
         self.collisions_per_checkmark_per_row = self._get_occupied_cells_per_row(
             cellules_decalees
         )
-
-    def _draw_checkmarks_bboxes(self):
-        """
-        Dessine les rectangles englobants autour des croix détectées.
-        - En rouge sur l'image annotée finale
-        - En blanc sur l'image intermédiaire de traitement
-        """
-        # Coordonnées de référence pour l'alignement
-        x_cell_ref, y_cell_ref, _, _ = self.sorted_cells[0][0]  # Première cellule
-        x_roi, y_roi, w_roi, h_roi = self.bbox_biggest_rect  # Zone d'intérêt principale
-
-        for x_croix, y_croix, w_croix, h_croix in self.checkmark_bboxes:
-            # Dessin sur l'image intermédiaire (en blanc)
-            cv2.rectangle(
-                self.cropped_no_lines,
-                (x_croix, y_croix),
-                (x_croix + w_croix, y_croix + h_croix),
-                255,  # Couleur blanche
-                2,  # Épaisseur du trait
-            )
-
-            # Dessin sur l'image finale (en rouge)
-            cv2.rectangle(
-                self.image_annotee,
-                # Calcul précis de la position absolue:
-                (
-                    x_croix + x_roi + self.middle_x + x_cell_ref,
-                    y_cell_ref + y_roi + y_croix,
-                ),
-                (
-                    x_croix + x_roi + self.middle_x + x_cell_ref + w_croix,
-                    y_cell_ref + y_roi + y_croix + h_croix,
-                ),
-                (0, 0, 255),  # Rouge en BGR
-                2,
-            )
-
-    def _draw_cells_bboxs(self):
-        """
-        Dessine les contours des cellules avec leur couleur d'état respective.
-        - Ignore les cellules marquées comme masquées (état -1)
-        - Marge intérieure de 10px pour mieux visualiser les cases
-        """
-        _, y_cell_ref, _, _ = self.sorted_cells[0][0]  # Référence verticale
-        x_roi, y_roi, _, _ = self.bbox_biggest_rect  # Offset du ROI
-
-        for i, row in enumerate(self.sorted_cells):
-            for j, (x_cell, y_cell, w_cell, h_cell) in enumerate(row):
-                # Ne pas dessiner les cellules masquées
-                if self.cells_state[i][j][1] == -1:
-                    continue
-
-                # Dessin avec marge intérieure de 10px
-                cv2.rectangle(
-                    self.image_annotee,
-                    (x_cell + self.middle_x + 10, y_roi + y_cell + 10),
-                    (
-                        x_cell + self.middle_x + w_cell - 10,
-                        y_roi + y_cell + h_cell - 10,
-                    ),
-                    cst.COLORS[self.cells_state[i][j][1]],  # Couleur selon l'état
-                    2,  # Épaisseur du trait
-                )
-
-    def _save_imgs(self, folder):
-        if not cst.SAVE:
-            return
-        try:
-            for key, img in self.imgs_dict.items():
-                cv2.imwrite(f"{folder}/{key}.png", img)
-        except (ValueError, FileExistsError, FileNotFoundError):
-            print("Sauvegarde Impossible")
 
     def _get_occupied_cells_per_row(self, offset_cells):
         """
@@ -518,19 +495,24 @@ class Grid:
                 for col_idx, (x_cell, y_cell, w_cell, h_cell) in enumerate(ligne):
 
                     # Calcul de la zone d'intersection
-                    x_min = max(x_croix, x_cell)
-                    x_max = min(x_croix + w_croix, x_cell + w_cell)
-                    y_min = max(y_croix, y_cell)
-                    y_max = min(y_croix + h_croix, y_cell + h_cell)
+                    x_intersection = max(
+                        0,
+                        min(x_cell + w_cell, x_croix + w_croix) - max(x_cell, x_croix),
+                    )
+                    y_intersection = max(
+                        0,
+                        min(y_cell + h_cell, y_croix + h_croix) - max(y_cell, y_croix),
+                    )
 
-                    # Si intersection valide
-                    if x_max > x_min and y_max > y_min:
-                        surface_intersec = (x_max - x_min) * (y_max - y_min)
+                    # Si l'intersection est valide (si la surface est positive)
+                    surface_intersec = x_intersection * y_intersection
+                    if surface_intersec > 0:
                         ratio = surface_intersec / surface_croix
-
                         # Enregistrement de la collision
                         if index not in croix_collisions:
-                            croix_collisions[index] = [(row_idx, col_idx, ratio)]
+                            croix_collisions[index] = [
+                                (row_idx, col_idx, ratio)
+                            ]  # Première collision pour cette croix
                         else:
                             croix_collisions[index].append((row_idx, col_idx, ratio))
 
@@ -544,9 +526,11 @@ class Grid:
             collisions = croix_collisions[index]
             meilleure_collision = max(collisions, key=lambda x: x[2])
 
-            # Seuil de certitude (60% de recouvrement)
+            # Seuil de certitude (70% de recouvrement)
             if meilleure_collision[2] >= Grid.seuil_croix:
-                ligne, colonne, _ = collisions[0]  # Prend la première (meilleure)
+                ligne, colonne, _ = (
+                    meilleure_collision  # Utilisation de la meilleure collision
+                )
                 self.cells_state[ligne][colonne][0] = 1  # Croix certaine
 
                 # Format: {ligne: [[col1], [col2], ...]}
@@ -557,29 +541,107 @@ class Grid:
 
             # Cas des croix ambiguës (ex: à cheval sur 2 colonnes)
             else:
-                colonnes_concernees = []
+                colonnes_concernees = (
+                    set()
+                )  # Utilisation d'un ensemble pour éviter les doublons
                 for ligne, colonne, ratio in collisions:
                     self.cells_state[ligne][colonne][0] = 0.5  # Croix incertaine
                     self.cells_state[ligne][colonne][1] = 2  # Code couleur orange
-                    colonnes_concernees.append(colonne)
+                    colonnes_concernees.add(colonne)  # Ajouter la colonne sans doublons
 
                 # Format: {ligne: [[col1, col2], ...]}
                 if ligne not in collisions_par_ligne:
-                    collisions_par_ligne[ligne] = [colonnes_concernees]
+                    collisions_par_ligne[ligne] = [list(colonnes_concernees)]
                 else:
-                    collisions_par_ligne[ligne].append(colonnes_concernees)
+                    collisions_par_ligne[ligne].append(list(colonnes_concernees))
+
+        # Éliminer les doublons pour chaque ligne
+        for ligne in collisions_par_ligne:
+            unique_col_lists = list({tuple(col) for col in collisions_par_ligne[ligne]})
+            collisions_par_ligne[ligne] = [list(col) for col in unique_col_lists]
 
         return collisions_par_ligne
+
+    def _save_imgs(self, folder):
+        if not cst.SAVE:
+            return
+        i = self.cropped_no_lines.copy()
+        for bbox in self.checkmark_bboxes:
+            x_croix, y_croix, w_croix, h_croix = bbox
+            cv2.rectangle(
+                i, (x_croix, y_croix), (x_croix + w_croix, y_croix + h_croix), 255, 2
+            )
+        self._add_img_to_dict("image_dilatee_ET_image_inversee", i)
+        image = self.image_annotee.copy()
+        self._draw_checkmarks_bboxes(image)
+        self._draw_cells_bboxs(image)
+        self._add_img_to_dict("image_annotée", image)
+        try:
+            for key, img in self.imgs_dict.items():
+                cv2.imwrite(f"{folder}/{key}.png", img)
+
+        except (ValueError, FileExistsError, FileNotFoundError):
+            print("Sauvegarde Impossible")
 
     # -------------------------------------------------------------------------------------------------------------
     #                                   Fonctions permettant l'interaction avec l'application
     # -------------------------------------------------------------------------------------------------------------
+    def _draw_checkmarks_bboxes(self, image):
+        # Coordonnées de référence pour l'alignement
+        x_cell_ref, y_cell_ref, _, _ = self.sorted_cells[0][0]  # Première cellule
+        x_roi, y_roi, w_roi, h_roi = self.bbox_biggest_rect  # Zone d'intérêt principale
+
+        for x_croix, y_croix, w_croix, h_croix in self.checkmark_bboxes:
+            # Dessin sur l'image finale (en rouge)
+            cv2.rectangle(
+                image,
+                # Calcul précis de la position absolue:
+                (
+                    x_croix + x_roi + self.middle_x + x_cell_ref,
+                    y_cell_ref + y_roi + y_croix,
+                ),
+                (
+                    x_croix + x_roi + self.middle_x + x_cell_ref + w_croix,
+                    y_cell_ref + y_roi + y_croix + h_croix,
+                ),
+                (0, 0, 255),  # Rouge en BGR
+                2,
+            )
+
+    def _draw_cells_bboxs(self, image):
+        """
+        Dessine les contours des cellules avec leur couleur d'état respective.
+        - Ignore les cellules marquées comme masquées (état -1)
+        - Marge intérieure de 10px pour mieux visualiser les cases
+        """
+        _, y_cell_ref, _, _ = self.sorted_cells[0][0]  # Référence verticale
+        x_roi, y_roi, _, _ = self.bbox_biggest_rect  # Offset du ROI
+
+        for i, row in enumerate(self.sorted_cells):
+            for j, (x_cell, y_cell, w_cell, h_cell) in enumerate(row):
+                # Ne pas dessiner les cellules masquées
+                if self.cells_state[i][j][1] == -1:
+                    continue
+
+                # Dessin avec marge intérieure de 10px
+                cv2.rectangle(
+                    image,
+                    (x_cell + self.middle_x + 10, y_roi + y_cell + 10),
+                    (
+                        x_cell + self.middle_x + w_cell - 10,
+                        y_roi + y_cell + h_cell - 10,
+                    ),
+                    cst.COLORS[self.cells_state[i][j][1]],  # Couleur selon l'état
+                    2,  # Épaisseur du trait
+                )
 
     def draw_all_bboxs(self):
         """Dessine toutes les boîtes englobantes (cellules et croix) sur l'image annotée"""
         self.image_annotee = self.original_matrix.copy()
-        self._draw_cells_bboxs()  # Dessine les contours des cellules
-        self._draw_checkmarks_bboxes()  # Dessine les contours des croix
+        self._draw_cells_bboxs(self.image_annotee)  # Dessine les contours des cellules
+        self._draw_checkmarks_bboxes(
+            self.image_annotee
+        )  # Dessine les contours des croix
 
     def run_analysis(self):
         """Exécute l'analyse complète de la grille si pas déjà fait"""
@@ -588,7 +650,7 @@ class Grid:
             self._extraction_lignes()  # Étape 2: Détection des lignes
             self._extraction_cellules()  # Étape 3: Extraction cellules
             self._extraction_croix()  # Étape 4: Détection croix
-            self._save_imgs("assets")  # Sauvegarde images intermédiaires
+            self._save_imgs(cst.SAVE_PATH)  # Sauvegarde images intermédiaires
         return {
             "image": self.image_annotee,  # Image avec annotations
             "type": self.type,  # Type de grille détecté
@@ -602,7 +664,6 @@ class Grid:
         for i, row in enumerate(self.sorted_cells):
             # Pondération double pour les lignes > 19
             multiplier = 2 if (i > 19 and self.type == GridType.PFE_Finale) else 1
-
             # Vérification cases cochées
             has_checked = any(cell[0] > 0 for cell in self.cells_state[i])
 
@@ -641,12 +702,12 @@ class Grid:
 
     def get_warnings_errors(self):
         """Détecte les anomalies structurelles"""
-        warnings = []
+        data = {"warnings": [], "errors": []}
         total_cells = sum(len(row) for row in self.sorted_cells)
 
         # Vérification type de grille
         if self.type is GridType.Unknown:
-            warnings.append(
+            data["warnings"].append(
                 "Type de grille inconnu. le calcule effectué ne sera pas fiable."
             )
 
@@ -658,13 +719,18 @@ class Grid:
             or expected_total != total_cells
         ):
 
-            warnings.append(
+            data["warnings"].append(
                 f"Incohérence détectée:\n"
                 f"- Cellules trouvées: {total_cells}\n"
                 f"- Cellules attendues: {expected_total}"
             )
-
-        return warnings
+        lignes_non_vides = set(self.collisions_per_checkmark_per_row.keys())
+        lignes_vides = list(set(range(len(self.sorted_cells))) - lignes_non_vides)
+        if lignes_vides:
+            lignes_vides.sort()
+            for ligne in lignes_vides:
+                data["warnings"].append(f"Ligne vide détectée: {ligne + 1}")
+        return data
 
     def get_problematic_cells_per_row(self):
         """Identifie les lignes avec détections ambiguës"""

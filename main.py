@@ -7,9 +7,45 @@ from convert_pdf import PDFFile
 from grid import Grid
 from styling import *
 
-# TODO: Highlight rows and columns of the hovered buttons
-# TODO: Show the number of images in the PDF file
-# TODO: write documentation
+
+# Structure de l'application :
+# - La classe `App` est le point d'entrée principal de l'application. Elle gère la fenêtre principale, les widgets, et les interactions utilisateur.
+# - La classe `ImageViewer` est un widget personnalisé pour afficher et interagir avec des images (zoom, déplacement, etc.).
+# - Les classes `ConflictFrame` et `WarningFrame` sont des cadres personnalisés pour afficher les conflits et les avertissements détectés dans les grilles.
+# - `NavigationButtons` gère les boutons de navigation pour parcourir les fichiers PDF et les grilles.
+# - `PDFFile` est une classe qui gère l'extraction d'images à partir de fichiers PDF et la conversion de ces images en grilles exploitables.
+# - `Grid` est une classe qui représente une grille extraite d'une image PDF et fournit des méthodes pour analyser et manipuler cette grille.
+# - `openpyxl` est utilisé pour manipuler des fichiers Excel, permettant de sauvegarder les grilles modifiées.
+# - `constants` contient des constantes utilisées dans l'application (comme les couleurs, les polices, etc.).
+# - `styling` contient des styles et des thèmes pour l'interface utilisateur.
+# - `convert_pdf` contient la classe `PDFFile` qui gère l'extraction d'images à partir de fichiers PDF.
+
+# Fonctionnalités principales :
+# - Chargement et navigation dans des fichiers PDF.
+# - Extraction et affichage de grilles détectées dans les PDF.
+# - Interaction avec les grilles (sélection de cellules, affichage des conflits, etc.).
+# - Sauvegarde des grilles modifiées dans un fichier Excel.
+# - Affichage d'images avec des fonctionnalités de zoom et de déplacement.
+
+# Points clés :
+# - Les widgets CustomTkinter sont utilisés pour créer une interface moderne et personnalisée.
+# - OpenCV est utilisé pour manipuler les images (redimensionnement, conversion de couleurs, etc.).
+# - La navigation entre les fichiers PDF et les grilles est gérée par des fonctions utilitaires centralisées.
+# - Les événements utilisateur (clics, survols, etc.) sont liés à des callbacks pour des interactions dynamiques.
+
+# Explication des fonctions :
+# - `App.__init__`: Initialise l'application, configure la fenêtre principale et les widgets.
+# - `App.run`: Lance la boucle principale de l'application.
+# - `App.open_file`: Permet de sélectionner et charger des fichiers PDF.
+# - `App.save_file`: Sauvegarde les grilles modifiées dans un fichier Excel.
+# - `App.update`: Met à jour l'interface utilisateur avec les données actuelles.
+# - `App.show_next_pdf` et `App.show_previous_pdf`: Naviguent entre les fichiers PDF.
+# - `App.show_next_grid` et `App.show_previous_grid`: Naviguent entre les grilles d'un PDF.
+# - `ImageViewer.__init__`: Configure le widget pour afficher des images avec des fonctionnalités de zoom et de déplacement.
+# - `ImageViewer.zoom`: Gère le zoom avant/arrière sur l'image.
+# - `ImageViewer.pan`: Permet de déplacer l'image dans le widget.
+# - `ImageViewer.redraw_image`: Redessine l'image après un zoom ou un déplacement.
+# - `ImageViewer.resize`: Redimensionne l'image pour s'adapter au widget.
 
 
 class ImageViewer(ctk.CTkCanvas):
@@ -224,7 +260,7 @@ class App:
             textvariable=self.current_pdf_var,
         )
         self.show_detected_cells = ctk.CTkCheckBox(
-            self.rhs_frame, text="WireFrame", command=self.draw_detected_cells
+            self.rhs_frame, text="Vue Détection", command=self.draw_detected_cells
         )
         self.add_file_button = ctk.CTkButton(
             self.rhs_frame, text="Ajouter", command=self.open_file
@@ -293,7 +329,7 @@ class App:
             problematic_rows, self.cell_buttons_callback
         )
 
-        self.warning_frame.add_warnings(self.current_grid.get_warnings_errors())
+        self.warning_frame.add_warnings(self.current_grid.get_warnings_errors()["warnings"])
 
         if not self.confilct_frame.button_frames:
             self.update_displayed_score(self.current_grid.calculate_score())
@@ -431,6 +467,8 @@ class App:
         self.image_viewer._do_resize(keep_scale=True)
 
     def draw_detected_cells(self, event=None):
+        if self.current_grid is None:
+            return
         self.current_grid.clear_image(self.show_detected_cells.get())
         App.cv_image = self.current_grid.image_annotee
         self.image_viewer._do_resize(keep_scale=True)

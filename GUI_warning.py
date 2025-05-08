@@ -100,6 +100,7 @@ class InteractiveFrame(ctk.CTkFrame):
         self.label.grid(column=0, row=0, rowspan=1, columnspan=1, sticky="nsew", pady=4)
 
         self.scrollable_frame = ctk.CTkScrollableFrame(self, fg_color="#efefef")
+        self.scrollable_frame.columnconfigure(0, weight=1)
         self.scrollable_frame.grid(
             column=0, row=1, rowspan=2, columnspan=1, sticky="nsew", padx=4, pady=(0, 4)
         )
@@ -147,20 +148,24 @@ class WarningFrame(InteractiveFrame):
     class WarningNotification(ctk.CTkFrame):
         def __init__(self, master, warning: str, **kwargs):
             super().__init__(master, fg_color=orange_notification, **kwargs)
+            
+            self.columnconfigure(0, weight=1)  # allow label to stretch
+            
             self.top_border = ctk.CTkFrame(self, height=2, fg_color=light_orange)
             self.top_border.grid(row=0, column=0, sticky="ew", pady=(1, 0), padx=3)
+
             self.label = ctk.CTkLabel(
                 self,
                 text=warning,
                 font=font1,
-                wraplength=self.master.winfo_width() + 10,
+                wraplength=self.winfo_width() - 20,
             )
             self.label.grid(row=1, column=0, sticky="nsew", pady=(8, 8), padx=4)
 
-            self.master.bind("<Configure>", self.update_wrap)
+            self.bind("<Configure>", self.update_wrap)
 
         def update_wrap(self, event=None):
-            self.label.configure(wraplength=event.width - 20)
+            self.label.configure(wraplength=self.winfo_width() - 20)
 
     def __init__(self, master, row_span=2, row=1, **kwargs):
         super().__init__(
@@ -176,16 +181,17 @@ class WarningFrame(InteractiveFrame):
             padx=7,
             pady=4,
         )
+        self.scrollable_frame.grid_columnconfigure(0, weight=1)  # important for stretching
         self.warning_notifications: list[WarningFrame.WarningNotification] = []
 
-    def add_warnings(self, warnings: str):
-        for warning in warnings:
-            self.warning_notifications.append(
-                self.WarningNotification(self.scrollable_frame, warning)
-            )
-            self.warning_notifications[-1].pack(fill="x", padx=4, pady=(5, 5))
+    def add_warnings(self, warnings: list[str]):
+        for i, warning in enumerate(warnings):
+            notif = self.WarningNotification(self.scrollable_frame, warning)
+            notif.grid(row=i, column=0, sticky="ew", padx=4, pady=(5, 5))
+            self.warning_notifications.append(notif)
 
     def clear(self):
         for warning_notification in self.warning_notifications:
             warning_notification.destroy()
         self.warning_notifications.clear()
+
