@@ -8,7 +8,7 @@ Ce répertoire contient le code source du projet technique dédié à la **corre
 
 ### Interface utilisateur
 <p align="center">
-<img src="assets/ui.png" width="300" />
+<img src="assets/ui.png" width="500" />
 </p>
 ### Exemple d’image
 
@@ -220,11 +220,6 @@ Résultat :
   - Forme rectangulaire (4 côtés)
   - Surface dans ±45% de la médiane
   - Tolérance d'approximation : 10%
-#### Justification de la tolérance (±45% de la médiane)
-
-Une tolérance large permet d’accepter les cellules dont la taille varie à cause :
-- des déformations lors de la prise de vue (inclinaison, perspective),
-- des petites irrégularités d'impression ou de découpe.
 
 Ce seuil a été fixé empiriquement pour :
 - maximiser la détection des vraies cellules,
@@ -284,8 +279,8 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 ### 4.6. Amélioration de la Qualité
 #### Post-traitement Morphologique
-1. **Fermeture** (5x5) : Combler les micro-interruptions  
-2. **Ouverture** (3x3) : Affiner les contours
+1. **Fermeture** (5x5) 
+2. **Ouverture** (3x3)
 <div align="center">
 
 | Avant | Après |
