@@ -5,7 +5,6 @@ Ce répertoire contient le code source du projet technique dédié à la **corre
 <p align="center">
 <img src="assets/logo_app.png" alt="Logo" width="300" /></p>
 </p>
----
 
 ### Interface utilisateur
 <p align="center">
@@ -17,7 +16,6 @@ Voici l'image utilisée comme exemple pour illustrer les différentes étapes du
 <p align="center">
 <img src="assets/etapes/0-originale.png" width="300" />
 </p>
----
 
 ### Modifications apportées à la grille
 
@@ -41,7 +39,6 @@ Utilisation de cette image pour démontrer le fonctionnement du système étape 
 
 Avant toute analyse, l'image subit un ensemble de transformations afin d'améliorer la lisibilité et la robustesse du traitement :
 
----
 
 ### 1.1. Détection du type de grille & redressement
 
@@ -51,7 +48,6 @@ Un **QR code** est intégré dans la grille pour encoder :
 
 Cela permet de corriger automatiquement l'inclinaison de l'image et d'adapter le traitement à la grille scannée.
 
----
 
 ### 1.2. Conversion en niveaux de gris
 
@@ -60,7 +56,6 @@ La première étape visuelle consiste à convertir l'image couleur en **niveau d
 <p align="center">
 <img src="assets/etapes/1-niveau_gris.png" width="300" />
 </p>
----
 
 ### 1.3. Binarisation adaptative
 
@@ -75,7 +70,6 @@ Cela produit une image en noir et blanc plus robuste, même en cas d’éclairag
 <p align="center">
 <img src="assets/etapes/2-binaire.png" width="300" />
 </p>
----
 
 ### 1.4. Inversion
 
@@ -84,19 +78,16 @@ On applique aussi un **filtrage** pour réduire les petits bruits indésirables.
 <p align="center">
 <img src="assets/etapes/3-inverse.png" width="300" />
 </p>
----
 
 ## 2. Extraction des lignes et colonnes
 
 Une fois l’image prétraitée, on passe à la détection de la structure de la grille, c’est-à-dire les lignes horizontales et verticales.
 
----
 
 ### 2.1. Détection des lignes horizontales
 
 L'objectif est d'isoler uniquement les lignes horizontales de la grille à l'aide d'opérations morphologiques :
 
----
 
 ####    Érosion horizontale
 
@@ -110,7 +101,6 @@ Résultat :
 <p align="center">
 <img src="assets/etapes/4-lignes_horizontales_erosion.png" width="300" />
 </p>
----
 
 #### Dilatation horizontale
 
@@ -125,19 +115,18 @@ Résultat :
 <img src="assets/etapes/7-lignes_horizontales.png" width="300" />
 </p>
 
-<p align="center">
+<div align="center">
 
 | Transformée de Hough | Résultat de la dilatation horizontale| Résultat ET Logique |
 |----------------------|--------------------------------------|----------|
 | <img src="assets/etapes/8-hough_horizontal.png" width="250"/> | <img src="assets/etapes/7-lignes_horizontales.png" width="250"/>| <img src="assets/etapes/11-lignes_horizontales_finale.png" width="250"/> |
 
-</p>
+</div>
 
 ### 2.2. Détection des lignes verticales
 
 De la même manière que pour les lignes horizontales, nous procédons à l'extraction des lignes verticales à l'aide d'opérations morphologiques :
 
----
 
 #### Érosion verticale
 
@@ -151,7 +140,7 @@ Résultat :
 <p align="center">
 <img src="assets/etapes/5-lignes_verticales_erosion.png" width="300" />
 </p>
----
+
 
 #### Dilatation verticale
 
@@ -166,13 +155,13 @@ Résultat :
 <img src="assets/etapes/6-lignes_verticales.png" width="300" />
 </p>
 
-<p align="center">
+<div align="center">
 
 | Transformée de Hough | Résultat de la dilatation verticale| Résultat ET Logique &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|
 |----------------------|--------------------------------------|----------|
 | <img src="assets/etapes/9-hough_vertical.png" width="250"/> | <img src="assets/etapes/6-lignes_verticales.png" width="250"/>| <img src="assets/etapes/10-lignes_verticales_finale.png" width="250"/> |
 
-</p>
+</div>
 
 #### Combinaison des deux images avec un OU logique:
 
@@ -180,6 +169,7 @@ Résultat :
 <p align="center">
 <img src="assets/etapes/12-lignes_combines.png" width="300" />
 </p>
+
 ## 3. Extraction des Cellules
 
 ### 3.1 Préparation de la Zone de Travail
@@ -190,7 +180,7 @@ Résultat :
 <p align="center">
 <img src="assets/etapes/13-moitie_droite_lignes_combinees.png" width="300" />
 </p>
----
+
 
 ### 3.2 Détection du Cadre Principal (plus grand contour)
 #### Identification du Rectangle Dominant
@@ -210,7 +200,7 @@ Résultat :
 <img src="assets/etapes/16-ligne_combinees_cadree.png" width="300" />
 </p>
 
----
+
 
 ### 3.3 Optimisation des Lignes
 #### Amincissement des Traits
@@ -221,7 +211,7 @@ Résultat :
 <p align="center">
 <img src="assets/etapes/17-lignes_minces_cadree.png" width="300" />
 </p>
----
+
 
 ### 3.4 Extraction des Contours Internes
 #### Détection Multi-échelle
@@ -246,7 +236,7 @@ tolerance = 0.45
 approximation = 0.1 * cv2.arcLength(contour, True)
 ```
 
----
+
 
 # 4. Détection des Croix de Vérification
 
@@ -268,7 +258,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 <p align="center">
 <img src="assets/etapes/21-sans_lignes_verticales_ouverture_cadree.png" width="300" />
 </p>
----
+
 
 ### 4.3. Reconnexion des Éléments
 #### Dilatation Horizontale
@@ -284,26 +274,25 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 #### Masquage Sélectif
 - **Technique** : Soustraction des lignes horizontales
 - **Précision** : Conservation des formes angulaires
-<p align="center">
+<div align="center">
 
 | Masque Horizontal | Résultat après soustraction |
 |-------------------|-----------------------------|
 | <img src="assets/etapes/23-masque_horizontal_cadree.png" width="300" /> | <img src="assets/etapes/24-diff_masque_horizontal_sans_lignes_verticales_dilatee.png" width="300" /> |
 
-</p>
+</div>
 
 ### 4.6. Amélioration de la Qualité
 #### Post-traitement Morphologique
 1. **Fermeture** (5x5) : Combler les micro-interruptions  
 2. **Ouverture** (3x3) : Affiner les contours
-<p align="center">
+<div align="center">
 
 | Avant | Après |
 |-------|-------|
 | <img src="assets/etapes/24-diff_masque_horizontal_sans_lignes_verticales_dilatee.png" width="300" /> | <img src="assets/etapes/26-apres_ouverture.png" width="300" /> |
 
-</p>
----
+</div>
 
 ### 4.7. Filtrage Final
 #### Combinaison Logique AND avec l'image binaire inversée
@@ -312,7 +301,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 <p align="center">
 <img src="assets/etapes/27-image_dilatee_ET_image_inversee.png" width="300" />
 </p>
----
+
 
 ### 4.8. Détection des croix
 #### Extraction des Contours Valides
