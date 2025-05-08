@@ -3,19 +3,20 @@
 Ce répertoire contient le code source du projet technique dédié à la **correction automatique des grilles de stage**.
 
 <p align="center">
-<img src="assets/logo_app.png" alt="Logo" width="450" /></p>
-
+<img src="assets/logo_app.png" alt="Logo" width="300" /></p>
+</p>
 ---
 
 ### Interface utilisateur
-<img src="assets/ui.png" width="450" />
-
+<p align="center">
+<img src="assets/ui.png" width="300" />
+</p>
 ### Exemple d’image
 
 Voici l'image utilisée comme exemple pour illustrer les différentes étapes du traitement :
-
-<img src="assets/etapes/0-originale.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/0-originale.png" width="300" />
+</p>
 ---
 
 ### Modifications apportées à la grille
@@ -56,9 +57,9 @@ Cela permet de corriger automatiquement l'inclinaison de l'image et d'adapter le
 
 La première étape visuelle consiste à convertir l'image couleur en **niveau de gris**, ce qui simplifie les traitements suivants :
 
-
-<img src="assets/etapes/1-niveau_gris.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/1-niveau_gris.png" width="300" />
+</p>
 ---
 
 ### 1.3. Binarisation adaptative
@@ -71,18 +72,18 @@ On utilise la méthode `ADAPTIVE_THRESH_GAUSSIAN_C` de OpenCV avec les paramètr
 - **Valeur soustraite** : 5 (ajuste finement le seuil)
 
 Cela produit une image en noir et blanc plus robuste, même en cas d’éclairage inégal :
-
-<img src="assets/etapes/2-binaire.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/2-binaire.png" width="300" />
+</p>
 ---
 
 ### 1.4. Inversion
 
 L'image est ensuite **inversée** (noir ⇄ blanc) pour faciliter les détections de lignes et coches.  
 On applique aussi un **filtrage** pour réduire les petits bruits indésirables.
-
-<img src="assets/etapes/3-inverse.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/3-inverse.png" width="300" />
+</p>
 ---
 
 ## 2. Extraction des lignes et colonnes
@@ -106,9 +107,9 @@ L'objectif est d'isoler uniquement les lignes horizontales de la grille à l'aid
 Cela permet d'effacer les petites perturbations et de renforcer la structure horizontale.
 
 Résultat :
-
-<img src="assets/etapes/4-lignes_horizontales_erosion.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/4-lignes_horizontales_erosion.png" width="300" />
+</p>
 ---
 
 #### Dilatation horizontale
@@ -120,9 +121,9 @@ Résultat :
 Cette étape reconstruit les lignes nettes sur l’image en supprimant les résidus indésirables.
 
 Résultat :
-
-<img src="assets/etapes/7-lignes_horizontales.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/7-lignes_horizontales.png" width="300" />
+</p>
 | Transformée de Hough | Résultat de la dilatation horizontale| Résultat ET Logique |
 |----------------------|--------------------------------------|----------|
 | <img src="assets/etapes/8-hough_horizontal.png" width="250"/> | <img src="assets/etapes/7-lignes_horizontales.png" width="250"/>| <img src="assets/etapes/11-lignes_horizontales_finale.png" width="250"/> |
@@ -143,9 +144,9 @@ De la même manière que pour les lignes horizontales, nous procédons à l'extr
 Cela permet de réduire les éléments non-pertinents et de préserver uniquement la structure verticale.
 
 Résultat :
-
-<img src="assets/etapes/5-lignes_verticales_erosion.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/5-lignes_verticales_erosion.png" width="300" />
+</p>
 ---
 
 #### Dilatation verticale
@@ -157,9 +158,9 @@ Résultat :
 Cette étape permet de redonner aux lignes verticales leur pleine largeur.
 
 Résultat :
-
-<img src="assets/etapes/6-lignes_verticales.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/6-lignes_verticales.png" width="300" />
+</p>
 | Transformée de Hough | Résultat de la dilatation verticale| Résultat ET Logique &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|
 |----------------------|--------------------------------------|----------|
 | <img src="assets/etapes/9-hough_vertical.png" width="250"/> | <img src="assets/etapes/6-lignes_verticales.png" width="250"/>| <img src="assets/etapes/10-lignes_verticales_finale.png" width="250"/> |
@@ -167,9 +168,9 @@ Résultat :
 #### Combinaison des deux images avec un OU logique:
 
 Résultat : 
-
-<img src="assets/etapes/12-lignes_combines.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/12-lignes_combines.png" width="300" />
+</p>
 ## 3. Extraction des Cellules
 
 ### 3.1 Préparation de la Zone de Travail
@@ -208,9 +209,9 @@ Résultat :
 - **Effet** : 
   - Réduction d'épaisseur des lignes à 1px
   - Séparation claire des cellules adjacentes
-
-<img src="assets/etapes/17-lignes_minces_cadree.png" width="450" />
-
+<p align="center">
+<img src="assets/etapes/17-lignes_minces_cadree.png" width="300" />
+</p>
 ---
 
 ### 3.4 Extraction des Contours Internes
@@ -277,7 +278,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 | Masque Horizontal | Résultat après soustraction |
 |-------------------|-----------------------------|
-| <img src="assets/etapes/23-masque_horizontal_cadree.png" width="450" /> | <img src="assets/etapes/24-diff_masque_horizontal_sans_lignes_verticales_dilatee.png" width="450" /> |
+| <img src="assets/etapes/23-masque_horizontal_cadree.png" width="300" /> | <img src="assets/etapes/24-diff_masque_horizontal_sans_lignes_verticales_dilatee.png" width="300" /> |
 
 
 ### 4.6. Amélioration de la Qualité
@@ -287,7 +288,7 @@ approximation = 0.1 * cv2.arcLength(contour, True)
 
 | Avant | Après |
 |-------|-------|
-| <img src="assets/etapes/24-diff_masque_horizontal_sans_lignes_verticales_dilatee.png" width="450" /> | <img src="assets/etapes/26-apres_ouverture.png" width="450" /> |
+| <img src="assets/etapes/24-diff_masque_horizontal_sans_lignes_verticales_dilatee.png" width="300" /> | <img src="assets/etapes/26-apres_ouverture.png" width="300" /> |
 
 ---
 
@@ -306,5 +307,6 @@ approximation = 0.1 * cv2.arcLength(contour, True)
   - Surface > 175 pixels²
   - Forme compacte
   - Position intra-cellule
-
-<img src="assets/etapes/28-contours_croix.png" width="450" />
+<p align="center">
+<img src="assets/etapes/28-contours_croix.png" width="300" />
+</p>
