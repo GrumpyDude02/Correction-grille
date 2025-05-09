@@ -1,7 +1,8 @@
 # Projet Bureau d'Etude Technique
 ## Correction automatique des grilles de stage
 Ce répertoire contient le code source du projet technique dédié à la **correction automatique des grilles de stage**.
-
+- La branche livrable correspond à la version finalisée du projet telle qu'elle a été remise.
+- La branche master contient une version sur laquelle des améliorations peuvent être apportées
 <p align="center">
 <img src="assets/logo_app.png" alt="Logo" width="300" /></p>
 </p>
