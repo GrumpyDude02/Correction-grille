@@ -579,7 +579,6 @@ class Grid:
 
         for i, row in enumerate(self.sorted_cells):
             # Pondération double pour les lignes > 19
-            print(self.cells_state[i])
             multiplier = 2 if (i > 19 and self.type == GridType.PFE_Finale) else 1
             # Vérification cases cochées
             has_checked = any(cell[0] > 0 for cell in self.cells_state[i])
