@@ -2,7 +2,6 @@ import cv2, numpy as np
 import imutils
 import tools
 import constants as cst
-from matplotlib import pyplot as plt
 from enum import Enum
 
 # -------------------------------------------------------------------------------------------------------------
@@ -78,11 +77,12 @@ class Grid:
         self.save_counter = 0
         self.imgs_dict = {}
 
-    def _add_img_to_dict(self, name, img):
+    
+    def _add_img_to_dict(self, name,img):
         """Ajoute une image au dictionnaire de sauvegarde un nom spécifique."""
-        self.imgs_dict[f"{self.save_counter}-{name}"] = img
+        self.imgs_dict[f"{self.save_counter}-{name}"] = img.copy()
         self.save_counter += 1
-
+        
     # ----------------------------------------------------------------------------------------------------------------------
     #           Fonctions de Traitement de l'image (Fonctions Principales)
     # ----------------------------------------------------------------------------------------------------------------------
@@ -146,9 +146,7 @@ class Grid:
         self.horizontal_lines = cv2.morphologyEx(
             self.inverted_img, cv2.MORPH_ERODE, Grid.horizontal_kernel, iterations=8
         )
-        self._add_img_to_dict(
-            "lignes_horizontales_erosion", self.horizontal_lines.copy()
-        )
+        self._add_img_to_dict("lignes_horizontales_erosion", self.horizontal_lines.copy())
         # Dilatation de reconstruction
         # - 14 itérations pour compenser l'érosion initiale
         self.horizontal_lines = cv2.morphologyEx(
@@ -175,7 +173,7 @@ class Grid:
         )
         self._add_img_to_dict("lignes_verticales", self.vertical_lines.copy())
         self._add_img_to_dict("lignes_horizontales", self.horizontal_lines.copy())
-
+        
         # - HoghLinesP pour affiner les lignes détectées
         hough_horizontal = tools.detecter_lignes_hough(
             self.horizontal_lines,
@@ -187,17 +185,16 @@ class Grid:
             longueur_min=int(self.original_matrix.shape[0] * 0.1),
             epaisseur=3,  # epaisseur de la ligne a dessiner sur l'image retournée par la fonction
         )
-
+        
+        
         self._add_img_to_dict("hough_horizontal", hough_horizontal.copy())
         self._add_img_to_dict("hough_vertical", hough_vertical.copy())
-
-        self.horizontal_lines = cv2.bitwise_and(hough_horizontal, self.horizontal_lines)
-        self.vertical_lines = cv2.bitwise_and(hough_vertical, self.vertical_lines)
-
+        
+        self.horizontal_lines = cv2.bitwise_and(hough_horizontal,self.horizontal_lines)
+        self.vertical_lines = cv2.bitwise_and(hough_vertical,self.vertical_lines)
+        
         self._add_img_to_dict("lignes_verticales_finale", self.vertical_lines.copy())
-        self._add_img_to_dict(
-            "lignes_horizontales_finale", self.horizontal_lines.copy()
-        )
+        self._add_img_to_dict("lignes_horizontales_finale", self.horizontal_lines.copy())
         # Combinaison des résultats
         # - Fusion des lignes horizontales et verticales détectées
 
@@ -212,9 +209,7 @@ class Grid:
         # ---------------------------------------------------------------
         # On isole la partie droite qui contient les cellules à analyser
         rhs_combined_lines = self.combined_lines[:, self.middle_x :]
-        self._add_img_to_dict(
-            "moitie_droite_lignes_combinees", rhs_combined_lines.copy()
-        )
+        self._add_img_to_dict("moitie_droite_lignes_combinees", rhs_combined_lines.copy())
         # ---------------------------------------------------------------
         # Étape 2: Détection du cadre principal
         # ---------------------------------------------------------------
@@ -224,44 +219,21 @@ class Grid:
         )
 
         # Sélection du plus grand contour détecté
-        biggest_contour = max(outer_contours, key=lambda x: cv2.contourArea(x))
-        self.bbox_biggest_rect = cv2.boundingRect(biggest_contour)
-        rhs = self.original_matrix[:, self.middle_x :].copy()
-        cv2.drawContours(
-            rhs,
-            [biggest_contour],
-            -1,
-            (0, 0, 255),
-            2,
+        self.bbox_biggest_rect = cv2.boundingRect(
+            max(outer_contours, key=lambda x: cv2.contourArea(x))
         )
-        self._add_img_to_dict("contour_principal", rhs.copy())
-        rhs = self.original_matrix[:, self.middle_x :].copy()
-        cv2.rectangle(
-            rhs,
-            (self.bbox_biggest_rect[0] + 10, self.bbox_biggest_rect[1]),
-            (
-                self.bbox_biggest_rect[0] + self.bbox_biggest_rect[2],
-                self.bbox_biggest_rect[1] + self.bbox_biggest_rect[3],
-            ),
-            (0, 255, 0),
-            5,
-        )
-        self._add_img_to_dict("rectangle_contour", rhs.copy())
+
         # Découpage de la région d'intérêt (ROI)
         x, y, w, h = self.bbox_biggest_rect
         self.cropped_combined_lines = rhs_combined_lines[y : y + h, x : x + w]
-        self._add_img_to_dict(
-            "ligne_combinees_cadree", self.cropped_combined_lines.copy()
-        )
+        self._add_img_to_dict("ligne_combinees_cadree", self.cropped_combined_lines.copy())  
         # ---------------------------------------------------------------
         # Étape 3: Affinement des lignes
         # ---------------------------------------------------------------
         # Amincissement des lignes pour mieux séparer les cellules
         # self.combined_cropped_lines = cv2.morphologyEx(self.cropped_combined_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1)
         self.cropped_combined_lines = cv2.ximgproc.thinning(self.cropped_combined_lines)
-        self._add_img_to_dict(
-            "lignes_minces_cadree", self.cropped_combined_lines.copy()
-        )
+        self._add_img_to_dict("lignes_minces_cadree", self.cropped_combined_lines.copy())
 
         # ---------------------------------------------------------------
         # Étape 4: Détection des cellules individuelles (peut être optimisé en utilisant les contours déjà detectés qui sont a l'intérieur du plus grand rectangle)
@@ -270,49 +242,12 @@ class Grid:
         inner_contours, _ = cv2.findContours(
             self.cropped_combined_lines, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
         )
-        rhs = self.original_matrix[:, self.middle_x :].copy()
-        rhs =rhs[y : y + h, x : x + w]
-        cv2.drawContours(
-            rhs,
-            inner_contours,
-            -1,
-            (0, 0, 255),
-            2,
-        )
-        self._add_img_to_dict("contours_internes", rhs.copy())
+
         bboxes = []
         areas = [cv2.contourArea(c) for c in inner_contours]
         median = np.median(areas)  # Surface médiane de référence
 
-        # areas_test = [
-        #     a
-        #     for a in areas
-        #     if median * (1 - Grid.tolerance) < a < median * (1 + Grid.tolerance)
-        # ]
-        # plt.figure(figsize=(8, 5))
-        # plt.hist(np.log(areas_test), bins="auto", color="blue", alpha=0.7, edgecolor='black')
-        # plt.axvline(np.log(median), color="red", linestyle="--", label=f"Median: {median:.2f}")  # Median line
-        # plt.xlabel("Log(Surface)")
-        # plt.ylabel("Occurences")
-        # plt.title("Histogramme des Surfaces (echelle logarithmique)")
-        # plt.grid(True, linestyle='--', alpha=0.5)
-        # plt.tight_layout()
-        # plt.savefig("assets/etapes/histogram1.png")
-        # plt.close()
-
-        # plt.figure(figsize=(8, 5))
-        # plt.hist(np.log(areas), bins="auto", color="green", alpha=0.7, edgecolor='black')
-        # plt.axvline(np.log(median), color="red", linestyle="--", label=f"Median: {median:.2f}")  # Median line
-        # plt.xlabel("Log(Surface)")
-        # plt.ylabel("Occurences")
-        # plt.title("Histogramme des Surfaces (echelle logarithmique)")
-        # plt.grid(True, linestyle='--', alpha=0.5)
-        # plt.tight_layout()
-        # plt.savefig("assets/etapes/histogram0.png")
-        # plt.close()
-
         # Filtrage des cellules valides
-        rhs = self.original_matrix[:, self.middle_x :].copy()[y : y + h, x : x + w]
         for contour in inner_contours:
             approx = cv2.approxPolyDP(
                 contour, 0.02 * cv2.arcLength(contour, True), True
@@ -325,12 +260,8 @@ class Grid:
             if 3 <= len(approx) <= 5 and median * (
                 1 - Grid.tolerance
             ) < area < median * (1 + Grid.tolerance):
-                rect= cv2.boundingRect(contour)
-                bboxes.append(rect)
-                cv2.rectangle(rhs, rect, (0, 255, 0), 2)  # Dessin de la boîte englobante
+                bboxes.append(cv2.boundingRect(contour))
 
-                
-        self._add_img_to_dict("contours_internes", rhs.copy())
         # ---------------------------------------------------------------
         # Étape 5: Organisation des cellules
         # ---------------------------------------------------------------
@@ -352,6 +283,7 @@ class Grid:
         # ---------------------------------------------------------------
         # Étape 1: Suppression des lignes verticales
         # ---------------------------------------------------------------
+
         no_vertical_lines = cv2.absdiff(
             self.vertical_lines,
             self.inverted_img,
@@ -361,9 +293,7 @@ class Grid:
         ][
             y_cell:, x_cell:
         ]  # cadrage a partir des coordonnées de la premiere cellule detectée
-        self._add_img_to_dict(
-            "sans_lignes_verticales_cadree", cropped_no_vertical_lines.copy()
-        )
+        self._add_img_to_dict("sans_lignes_verticales_cadree", cropped_no_vertical_lines.copy())
         # ---------------------------------------------------------------
         # Étape 2: Nettoyage initial
         # ---------------------------------------------------------------
@@ -371,9 +301,7 @@ class Grid:
         cropped_no_vertical_lines = cv2.morphologyEx(
             cropped_no_vertical_lines, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
         )
-        self._add_img_to_dict(
-            "sans_lignes_verticales_ouverture_cadree", cropped_no_vertical_lines.copy()
-        )
+        self._add_img_to_dict("sans_lignes_verticales_ouverture_cadree",cropped_no_vertical_lines.copy())
 
         # ---------------------------------------------------------------
         # Étape 3: Reconstitution des croix fragmentées
@@ -386,9 +314,7 @@ class Grid:
             iterations=3,
         )
         self.imgs_dict["sans_lignes_verticales_dilatee_cadree"] = dilated_img.copy()
-        self._add_img_to_dict(
-            "sans_lignes_verticales_dilatee_cadree", dilated_img.copy()
-        )
+        self._add_img_to_dict("sans_lignes_verticales_dilatee_cadree", dilated_img.copy())
 
         # ---------------------------------------------------------------
         # Étape 4: Suppression des artefacts horizontaux résiduels
@@ -400,9 +326,7 @@ class Grid:
         self._add_img_to_dict("masque_horizontal_cadree", mask_horizontal.copy())
 
         dilated_img = cv2.absdiff(dilated_img, mask_horizontal)
-        self._add_img_to_dict(
-            "diff_masque_horizontal_sans_lignes_verticales_dilatee", dilated_img
-        )
+        self._add_img_to_dict("diff_masque_horizontal_sans_lignes_verticales_dilatee",dilated_img)
 
         # ---------------------------------------------------------------
         # Étape 5: Post-traitement morphologique
@@ -413,7 +337,7 @@ class Grid:
             dilated_img, cv2.MORPH_CLOSE, Grid.square_kernel5, iterations=1
         )
         self._add_img_to_dict("apres_fermeture", dilated_img.copy())
-
+        
         dilated_img = cv2.morphologyEx(
             dilated_img, cv2.MORPH_OPEN, Grid.square_kernel3, iterations=1
         )
@@ -431,7 +355,6 @@ class Grid:
         )
         self._add_img_to_dict("image_dilatee_ET_image_inversee", final_img.copy())
         self.cropped_no_lines = final_img.copy()
-        temp = self.original_matrix.copy()[:,self.middle_x:][y_roi : y_roi + h_roi, x_roi : x_roi + w_roi][y_cell:, x_cell:]
 
         # ---------------------------------------------------------------
         # Étape 7: Détection des contours des croix
@@ -439,14 +362,7 @@ class Grid:
         contours, _ = cv2.findContours(
             final_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
-        cv2.drawContours(
-            temp,
-            contours,
-            -1,
-            (0, 0, 255),
-            2,
-        )
-        self._add_img_to_dict("contours_croix", temp.copy())
+
         # Filtrage par taille minimale
         self.checkmark_bboxes = [
             cv2.boundingRect(c)
@@ -663,6 +579,7 @@ class Grid:
 
         for i, row in enumerate(self.sorted_cells):
             # Pondération double pour les lignes > 19
+            print(self.cells_state[i])
             multiplier = 2 if (i > 19 and self.type == GridType.PFE_Finale) else 1
             # Vérification cases cochées
             has_checked = any(cell[0] > 0 for cell in self.cells_state[i])
@@ -725,7 +642,9 @@ class Grid:
                 f"- Cellules attendues: {expected_total}"
             )
         lignes_non_vides = set(self.collisions_per_checkmark_per_row.keys())
-        lignes_vides = list(set(range(len(self.sorted_cells))) - lignes_non_vides)
+        lignes_vides = list(
+            set(range(len(self.sorted_cells))) - lignes_non_vides
+        )
         if lignes_vides:
             lignes_vides.sort()
             for ligne in lignes_vides:
