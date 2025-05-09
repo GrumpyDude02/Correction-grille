@@ -33,8 +33,8 @@ Utilisation de cette image pour démontrer le fonctionnement du système étape 
 
 ### Remarque
 
-> Le code QR de cette image contient volontairement une **erreur** : il indique **28 lignes** alors qu’il y en a en réalité **26**.  
-> Cette incohérence a été utile pour tester le traitement automatique et l'interface utilisateur,
+> Le code QR présent sur cette image contient volontairement une erreur : il indique 28 lignes, alors qu’il y en a en réalité 26.
+> Cette incohérence a été introduite afin de tester l’apparition des messages d’avertissement.
 
 
 ## 1. Prétraitement de l'image
