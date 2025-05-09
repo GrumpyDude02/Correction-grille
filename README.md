@@ -305,5 +305,5 @@ approximation = 0.1 * cv2.arcLength(contour, True)
   - Forme compacte
   - Position intra-cellule
 <p align="center">
-<img src="assets/etapes/28-contours_croix.png" width="300" />
+<img src="assets/etapes/29-image_dilatee_ET_image_inversee.png" width="300" />
 </p>
