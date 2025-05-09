@@ -11,6 +11,7 @@ Ce répertoire contient le code source du projet technique dédié à la **corre
 <p align="center">
 <img src="assets/ui.png" width="500" />
 </p>
+
 ### Exemple d’image
 
 Voici l'image utilisée comme exemple pour illustrer les différentes étapes du traitement :
