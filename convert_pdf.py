@@ -1,4 +1,4 @@
-import pymupdf, cv2, numpy as np
+import pymupdf, cv2, numpy as np,fitz
 from grid import Grid
 
 """
@@ -139,28 +139,27 @@ class PDFFile:
                 self._raw_images_dict
             )  # Si les images sont déjà extraites, on les retourne directement
         for i in range(len(self.file)):
-            page = self.file.load_page(i)
-            page_width, page_height = page.rect.width, page.rect.height
+            page : pymupdf.Page = self.file.load_page(i)
+            minimum_page_area = 0.7 * (page.rect.width * page.rect.height)
             images = page.get_images(full=True)
-
-            selected_image = None
             max_area = 0
+            xref_max = None
             # Parcourt toutes les images de la page
             for img in images:
                 xref = img[0]
-                base_image_dict = self.file.extract_image(xref)
-                width = base_image_dict["width"]
-                height = base_image_dict["height"]
-                area = width * height
+                for info in page.get_image_info(xref):
+                    bbox = fitz.Rect(info["bbox"])
+                    area = bbox.width * bbox.height
+        
+                    # Vérifie si l'image couvre au moins ~70% de la surface de la page
+                    if area > max_area and area >= minimum_page_area:
+                        max_area = area
+                        xref_max = xref
 
-                # Vérifie si l'image couvre au moins ~70% de la surface de la page
-                if area > max_area and area >= 0.7 * (page_width * page_height):
-                    max_area = area
-                    selected_image = base_image_dict
-
-            if selected_image:
+            if xref_max is not None:
                 # Une image suffisamment grande a été trouvée
-                self._raw_images_dict.append(selected_image)
+                base_image_dict = self.file.extract_image(xref_max)
+                self._raw_images_dict.append(base_image_dict)
             else:
                 # Aucune image adéquate – on effectue un rendu de la page en 300 PPI
                 pix = page.get_pixmap(dpi=300)

@@ -1,4 +1,5 @@
-import customtkinter as ctk, cv2, openpyxl
+import customtkinter as ctk, cv2, openpyxl,traceback
+from tkinter import messagebox
 from constants import *
 from GUI_warning import ConflictFrame, WarningFrame
 from GUI_cyclebuttons import NavigationButtons
@@ -344,7 +345,16 @@ class App:
         self.bottom_bottons.current_pdf_grid_count_var.set(
             f"{grid_index + 1} / {grid_count} images"
         )
-        self.update(self.current_grid.run_analysis())
+        try:
+            analysis_results = self.current_grid.run_analysis()
+            self.update(analysis_results)
+        except Exception as e:
+            self.image_viewer.delete("all")
+            messagebox.showerror(
+                "Avertissement",
+                "Une exception s'est produite, probablement parce que la page ne contient aucune grille.",
+                detail=f"Détail : {traceback.format_exc()}"
+            )
         
     def _load_pdf_and_grid(self, index_func=None, grid_func=None):
         """
