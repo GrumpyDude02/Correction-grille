@@ -1,4 +1,13 @@
 # Projet Bureau d'Etude Technique
+
+## Mises à jour:
+
+**2025-09-07** – Correction : utiliser la taille de l’image sur la page pour le calcul de couverture  
+Auparavant, le programme utilisait la taille en pixels de l’image au lieu de sa taille affichée sur la page PDF, ce qui entraînait des vérifications incorrectes. Le problème a été corrigé en utilisant la boîte englobante de l’image sur la page.
+
+---
+
+
 ## Correction automatique des grilles de stage
 Ce répertoire contient le code source du projet technique dédié à la **correction automatique des grilles de stage**.
 - La branche livrable correspond à la version finalisée du projet telle qu'elle a été remise.
