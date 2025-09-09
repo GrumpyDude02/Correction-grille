@@ -1,39 +1,37 @@
 import customtkinter as ctk
 
-
 class NavigationButtons(ctk.CTkFrame):
     def __init__(self, master, row, column, columnspan):
         super().__init__(master=master)
+        # Keep outer padding of the frame
         self.grid(
-            row=row, columnspan=columnspan, column=column, sticky="ew", padx=7, pady=4
+            row=row, columnspan=columnspan, column=column,
+            sticky="nsew", padx=7, pady=10
         )
 
-        self.columnconfigure(0, weight=1, uniform="b")
-        self.columnconfigure(1, weight=1, uniform="b")
-        self.columnconfigure(2, weight=1, uniform="b")
-        self.columnconfigure(3, weight=1, uniform="b")
-        self.columnconfigure(4, weight=1, uniform="b")
+        # Internal frame to tightly pack buttons and label
+        inner_frame = ctk.CTkFrame(self, fg_color="transparent")
+        inner_frame.pack(expand=True)  # center inside the outer frame
 
-        self.previous_file = ctk.CTkButton(self, text="<<")
-        self.previous_file.grid(column=0, row=0, padx=10, pady=15)
+        # Previous button
+        self.previous_image = ctk.CTkButton(inner_frame, text="<", width=40)
+        self.previous_image.pack(side="left", padx=(0, 5))
 
-        self.next_file = ctk.CTkButton(self, text=">>")
-        self.next_file.grid(column=4, row=0, padx=20, pady=15)
-
-        self.previous_image = ctk.CTkButton(self, text="<")
-        self.previous_image.grid(column=1, row=0, padx=10, pady=15)
-
-        self.next_image = ctk.CTkButton(self, text=">")
-        self.next_image.grid(column=3, row=0, padx=10, pady=15)
-
+        # Label
         self.current_pdf_grid_count_var = ctk.StringVar(value="0 / 0 images")
-        self.current_pdf_grid_cound = ctk.CTkLabel(
-            self, textvariable=self.current_pdf_grid_count_var
+        self.current_pdf_grid_count = ctk.CTkLabel(
+            inner_frame, textvariable=self.current_pdf_grid_count_var
         )
-        self.current_pdf_grid_cound.grid(column=2, row=0, padx=10, pady=15)
+        self.current_pdf_grid_count.pack(side="left", padx=5)
+
+        # Next button
+        self.next_image = ctk.CTkButton(inner_frame, text=">", width=40)
+        self.next_image.pack(side="left", padx=(5, 0))
+
+    
+    def reset_counter(self):
+        self.current_pdf_grid_count_var.set("0 / 0 images")
 
     def set_command_functions(self, functions):
-        self.previous_file.configure(command=functions[0])
-        self.previous_image.configure(command=functions[1])
-        self.next_image.configure(command=functions[2])
-        self.next_file.configure(command=functions[3])
+        self.previous_image.configure(command=functions[0])
+        self.next_image.configure(command=functions[1])

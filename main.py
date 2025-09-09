@@ -1,4 +1,4 @@
-import customtkinter as ctk, cv2, openpyxl,traceback
+import customtkinter as ctk, cv2, openpyxl,traceback,os
 from tkinter import messagebox
 from constants import *
 from GUI_warning import ConflictFrame, WarningFrame
@@ -205,7 +205,7 @@ class App:
         ctk.set_appearance_mode("light")
         self.width = width
         self.height = height
-        self.pdfs: list[PDFFile] = []
+        self.pdfs: dict[str:PDFFile] = {}
         self.current_pdf_index: int | None = None
         self.current_grid: Grid | None = None
 
@@ -243,6 +243,9 @@ class App:
         self.rhs_frame.rowconfigure(6, weight=0)
         self.rhs_frame.columnconfigure((0, 1), weight=1, uniform="a")
 
+        self.dropdown_frame = ctk.CTkFrame(self.window,)
+        self.dropdown_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=4, pady=0)
+
         # Define StringVar variables
         self.grid_type = ctk.StringVar(value="Type de Grille: N/A")
         self.score = ctk.StringVar(value="Score : N/A")
@@ -254,19 +257,17 @@ class App:
         self.score_label = ctk.CTkLabel(
             self.rhs_frame, text="Score: ", textvariable=self.score, font=font1
         )
-        self.current_pdf_label = ctk.CTkLabel(
-            self.window,
-            text="Fichier PDF: ",
-            font=font1,
-            textvariable=self.current_pdf_var,
-        )
+
+        self.files_dropdown = ctk.CTkComboBox(self.dropdown_frame, state="readonly",values=list(self.pdfs.keys()),command=self._load_pdf_and_grid)
+        self.close_file = ctk.CTkButton(self.dropdown_frame, text_color="#FFFFFF",fg_color="#7C7C7C",state="disabled",text="Fermer",command=self._close_callback)
+
         self.show_detected_cells = ctk.CTkCheckBox(
             self.rhs_frame, text="Vue Détection", command=self.draw_detected_cells
         )
         self.add_file_button = ctk.CTkButton(
             self.rhs_frame, text="Ajouter", command=self.open_file
         )
-        self.bottom_bottons = NavigationButtons(self.window, 5, 0, 2)
+        self.bottom_buttons = NavigationButtons(self.window, 5, 0, 2)
         self.image_viewer = ImageViewer(self.window, 2, 0, 3, 2, App.cv_image)
         self.confilct_frame = ConflictFrame(self.rhs_frame, row=1, row_span=2)
         self.warning_frame = WarningFrame(self.rhs_frame, row=3, row_span=2)
@@ -285,18 +286,16 @@ class App:
         self.add_file_button.grid(
             row=6, column=1, columnspan=1, padx=10, pady=10, sticky="ew"
         )
-        self.current_pdf_label.grid(
-            row=1, column=0, columnspan=2, padx=4, pady=0, sticky="ew"
-        )
+        
+        self.files_dropdown.pack(side="left", fill="x", expand=True, padx=(0,5))
+        self.close_file.pack(side="left")
 
         self.rhs_frame.grid_columnconfigure(0, weight=1)
 
-        self.bottom_bottons.set_command_functions(
+        self.bottom_buttons.set_command_functions(
             [
-                self.show_previous_pdf,
                 self.show_previous_grid,
                 self.show_next_grid,
-                self.show_next_pdf,
             ]
         )
 
@@ -310,10 +309,6 @@ class App:
             self.window.iconbitmap(icon_path)
 
     def update(self, data: tuple = None):
-        if self.current_grid is not None:
-            self.current_pdf_var.set(
-                f"Fichier PDF: {self.pdfs[self.current_pdf_index].path.split('/')[-1]}"
-            )
         self.confilct_frame.clear()
         self.warning_frame.clear()
         self.update_displayed_score()
@@ -335,14 +330,14 @@ class App:
         if not self.confilct_frame.button_frames:
             self.update_displayed_score(self.current_grid.calculate_score())
 
-    def update_displayed_score(self, value: str | float = "N/A"):
+    def update_displayed_score(self, value: float | str = "N/A"):
         if isinstance(value, str):
             self.score.set(value=f"Score: {value}")
         else:
             self.score.set(value=f"Score: {value:.2f}")
 
     def _set_current_grid(self, grid_index, grid_count, event=None):
-        self.bottom_bottons.current_pdf_grid_count_var.set(
+        self.bottom_buttons.current_pdf_grid_count_var.set(
             f"{grid_index + 1} / {grid_count} images"
         )
         try:
@@ -355,23 +350,19 @@ class App:
                 "Une exception s'est produite, probablement parce que la page ne contient aucune grille.",
                 detail=f"Détail : {traceback.format_exc()}"
             )
-        
-    def _load_pdf_and_grid(self, index_func=None, grid_func=None):
+    
+
+    def _load_pdf_and_grid(self, event = None ,grid_func=None):
         """
         Fonction utilitaire centrale permettant de charger un fichier PDF et une grille.
         Elle est utilisée pour éviter la répétition de code dans les fonctions de navigation.
-        - `index_func` : fonction pour déterminer l'index du PDF à charger (ex: suivant, précédent…)
         - `grid_func` : fonction pour déterminer quelle grille afficher (ex: grille suivante…)
         """
         if not self.pdfs:
             return  # Aucun fichier PDF chargé
-
-        if self.current_pdf_index is None:
-            self.current_pdf_index = 0  # On démarre avec le premier fichier
-        elif index_func:
-            self.current_pdf_index = index_func(self.current_pdf_index)  # Applique la logique d’index
-
-        pdf: PDFFile = self.pdfs[self.current_pdf_index]
+        pdf: PDFFile = self.pdfs.get(self.files_dropdown.get())
+        if pdf is None:
+            return
         pdf.extract_grids()  # Extraction des grilles du fichier
 
         if grid_func:
@@ -381,27 +372,25 @@ class App:
 
         self._set_current_grid(grid_index, pdf.get_count())  # Mise à jour de l’interface
 
-    def _show_latest_file(self, event=None):
-        """
-        Affiche le dernier fichier PDF de la liste.
-        Utilisé pour charger le fichier le plus récent ou le dernier dans l’ordre.
-        """
-        self._load_pdf_and_grid(index_func=lambda _: len(self.pdfs) - 1)
 
-
-    def show_next_pdf(self, event=None):
-        """
-        Passe au fichier PDF suivant dans la liste.
-        Fait une rotation circulaire : après le dernier, revient au premier.
-        """
-        self._load_pdf_and_grid(index_func=lambda i: (i + 1) % len(self.pdfs))
-    
-    def show_previous_pdf(self, event=None):
-        """
-        Passe au fichier PDF précédent dans la liste.
-        Fait une rotation circulaire : avant le premier, passe au dernier.
-        """
-        self._load_pdf_and_grid(index_func=lambda i: (i - 1) % len(self.pdfs))
+    def _close_callback(self,event=None):
+        App.cv_image = None
+        App.resized_tk_img = None
+        selected = self.files_dropdown.get()
+        self.pdfs.pop(selected)
+        if not self.pdfs:
+            self.close_file.configure(state="disabled",fg_color="#7C7C7C")
+            self.image_viewer.delete("all")
+            self.bottom_buttons.reset_counter()
+            self.files_dropdown.configure(values=[])
+            self.files_dropdown.set(value="")
+            self.warning_frame.clear()
+            self.confilct_frame.clear()
+            return
+        values = list(self.pdfs.keys())
+        self.files_dropdown.configure(values = values)
+        self.files_dropdown.set(values[-1])
+        self._load_pdf_and_grid()
 
     def show_next_grid(self, event=None):
         """
@@ -426,8 +415,14 @@ class App:
         )
         if file_paths:
             for file_path in file_paths:
-                self.pdfs.append(PDFFile(file_path))
-            self._show_latest_file()
+                splits = os.path.split(file_path)
+                key = f"{splits[1]} - {splits[0]}"
+                self.pdfs[key] = PDFFile(file_path)
+            values = list(self.pdfs.keys())
+            self.files_dropdown.configure(values = values)
+            self.files_dropdown.set(values[-1])
+            self.close_file.configure(state="normal",fg_color="#F50202",hover_color="#990000")
+            self._load_pdf_and_grid()
 
     def save_file(self, event=None):
         if self.current_grid is None:

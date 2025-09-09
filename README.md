@@ -2,6 +2,9 @@
 
 ## Mises à jour:
 
+**2025-09-09** – Amélioration GUI : remplacer le défilement automatique des fichiers par un menu déroulant et un bouton de fermeture  
+Le parcours des fichiers importés par les bouttons a été supprimé. Les fichiers importés sont désormais accessibles via un menu déroulant, avec un bouton à côté pour fermer le fichier sélectionné.
+
 **2025-09-07** – Correction : utiliser la taille de l’image sur la page pour le calcul de couverture  
 Auparavant, le programme utilisait la taille en pixels de l’image au lieu de sa taille affichée sur la page PDF, ce qui entraînait des vérifications incorrectes. Le problème a été corrigé en utilisant la boîte englobante de l’image sur la page.
 

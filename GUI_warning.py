@@ -194,4 +194,3 @@ class WarningFrame(InteractiveFrame):
         for warning_notification in self.warning_notifications:
             warning_notification.destroy()
         self.warning_notifications.clear()
-
